@@ -2,18 +2,21 @@
 
 /**
  * Enriches parsed offers JSON with Google Maps ratings.
+ * Only processes hotels with ratingValue >= 8.5 and price > 14000.
+ * Uses google-ratings-cache.json to avoid duplicate API calls.
+ * Sends requests in parallel batches for speed.
  *
  * Usage:  node enrich-ratings.js [path/to/offers.json]
  *         If no path given, auto-detects newest data/offers_*.json
  *
- * Adds to each offer:
+ * Adds to each qualifying offer:
  *   googleRating        — Google Maps rating (0 if not found)
  *   googleRatingsTotal  — number of Google reviews (0 if not found)
  *   googleMapsUrl       — link to Google Maps place (null if not found)
  */
 
 import https from "node:https";
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 
 // ── Config (loaded from .env) ───────────────────────────────
 await loadEnv();
@@ -22,12 +25,15 @@ if (!GOOGLE_API_KEY) {
   console.error("Missing GOOGLE_MAPS_API_KEY in .env");
   process.exit(1);
 }
-const DELAY_MS = 1000;
+const MIN_RATING = 8.5;
+const MIN_PRICE = 14000;
+const BATCH_SIZE = 5;
+const BATCH_DELAY_MS = 200;
+const CACHE_FILE = "data/google-ratings-cache.json";
 // ────────────────────────────────────────────────────────────
 
 /**
  * Minimal .env loader — no external deps.
- * Reads .env from cwd, sets process.env for KEY=VALUE lines.
  */
 async function loadEnv() {
   try {
@@ -48,9 +54,6 @@ async function loadEnv() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Find the newest offers_*.json in data/
- */
 async function findNewestOffers() {
   const files = await readdir("data");
   const offerFiles = files
@@ -61,37 +64,18 @@ async function findNewestOffers() {
   return `data/${offerFiles[0]}`;
 }
 
-/**
- * Normalize hotel name for better Google search results.
- * Strips parenthesized suffixes: "Long Beach (Avsallar)" → "Long Beach"
- */
 function normalizeName(name) {
   return name.replace(/\s*\(.*?\)\s*/g, " ").trim();
 }
 
-/**
- * Map country names to English for Google query.
- */
 const COUNTRY_EN = {
-  Tunezja: "Tunisia",
-  Turcja: "Turkey",
-  Egipt: "Egypt",
-  Grecja: "Greece",
-  Hiszpania: "Spain",
-  Chorwacja: "Croatia",
-  Bułgaria: "Bulgaria",
-  Cypr: "Cyprus",
-  Maroko: "Morocco",
-  Portugalia: "Portugal",
-  Włochy: "Italy",
-  Czarnogóra: "Montenegro",
-  Albania: "Albania",
-  Malta: "Malta",
+  Tunezja: "Tunisia", Turcja: "Turkey", Egipt: "Egypt",
+  Grecja: "Greece", Hiszpania: "Spain", Chorwacja: "Croatia",
+  "Bułgaria": "Bulgaria", Cypr: "Cyprus", Maroko: "Morocco",
+  Portugalia: "Portugal", "Włochy": "Italy", "Czarnogóra": "Montenegro",
+  Albania: "Albania", Malta: "Malta",
 };
 
-/**
- * GET request via node:https (same pattern as scrape.js).
- */
 function get(url) {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
@@ -107,11 +91,36 @@ function get(url) {
   });
 }
 
+/** Load shared cache (same file used by server.js) */
+async function loadCache() {
+  try {
+    return JSON.parse(await readFile(CACHE_FILE, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+async function saveCache(cache) {
+  await mkdir("data", { recursive: true });
+  await writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
+}
+
 /**
- * Fetch Google Maps rating for a hotel.
- * Returns { rating, totalRatings, mapsUrl } or defaults on failure.
+ * Fetch Google Maps rating — checks cache first, then API.
+ * Returns top result from Google (or cache). Writes to cache.
  */
-async function fetchGoogleRating(name, city, country) {
+async function fetchGoogleRating(name, city, country, cache) {
+  // Cache hit
+  if (cache[name]?.results?.length > 0) {
+    const idx = cache[name].selected ?? 0;
+    const r = cache[name].results[idx];
+    return { rating: r.rating, totalRatings: r.totalRatings, mapsUrl: r.mapsUrl, fromCache: true };
+  }
+  if (cache[name] && cache[name].results?.length === 0) {
+    return { rating: 0, totalRatings: 0, mapsUrl: null, fromCache: true };
+  }
+
+  // API call
   const cleanName = normalizeName(name);
   const countryEn = COUNTRY_EN[country] || country || "";
   const query = `${cleanName} hotel ${city || ""} ${countryEn}`.trim();
@@ -124,63 +133,102 @@ async function fetchGoogleRating(name, city, country) {
 
   const data = await get(url.toString());
 
-  if (data.status === "OK" && data.results.length > 0) {
-    const r = data.results[0];
-    return {
+  if (data.status === "OK" && data.results?.length > 0) {
+    const results = data.results.slice(0, 5).map((r) => ({
+      name: r.name || "",
       rating: r.rating || 0,
       totalRatings: r.user_ratings_total || 0,
+      address: r.formatted_address || "",
+      placeId: r.place_id || "",
       mapsUrl: r.place_id
         ? `https://www.google.com/maps/place/?q=place_id:${r.place_id}`
         : null,
-    };
+    }));
+
+    cache[name] = { results, selected: 0, fetchedAt: new Date().toISOString() };
+    const r = results[0];
+    return { rating: r.rating, totalRatings: r.totalRatings, mapsUrl: r.mapsUrl, fromCache: false };
   }
 
-  return { rating: 0, totalRatings: 0, mapsUrl: null };
+  cache[name] = { results: [], selected: null, fetchedAt: new Date().toISOString() };
+  return { rating: 0, totalRatings: 0, mapsUrl: null, fromCache: false };
 }
 
 // ── Main ────────────────────────────────────────────────────
 
 const filePath = process.argv[2] || (await findNewestOffers());
-console.log(`Enriching: ${filePath}\n`);
+console.log(`Enriching: ${filePath}`);
+console.log(`Filter:    ratingValue >= ${MIN_RATING}, price > ${MIN_PRICE.toLocaleString("pl")} zl`);
+console.log(`Batch:     ${BATCH_SIZE} parallel, ${BATCH_DELAY_MS}ms between batches\n`);
 
 const offers = JSON.parse(await readFile(filePath, "utf-8"));
-const total = offers.length;
-let found = 0;
-const notFound = [];
+const cache = await loadCache();
 
-for (let i = 0; i < total; i++) {
-  const o = offers[i];
-  try {
-    const g = await fetchGoogleRating(o.name, o.city, o.country);
-    o.googleRating = g.rating;
-    o.googleRatingsTotal = g.totalRatings;
-    o.googleMapsUrl = g.mapsUrl;
-
-    if (g.rating > 0) {
-      found++;
-      process.stdout.write(`  ${i + 1}/${total} ${o.name} -> ${g.rating} (${g.totalRatings})\n`);
-    } else {
-      notFound.push(o);
-      process.stdout.write(`  ${i + 1}/${total} ${o.name} -> \u2717 not found\n`);
-    }
-  } catch (err) {
-    o.googleRating = 0;
-    o.googleRatingsTotal = 0;
-    o.googleMapsUrl = null;
-    notFound.push(o);
-    process.stdout.write(`  ${i + 1}/${total} ${o.name} -> \u2717 error: ${err.message}\n`);
-  }
-
-  if (i < total - 1) await sleep(DELAY_MS);
+// Deduplicate hotels matching filters
+const seen = new Set();
+const hotels = [];
+for (const o of offers) {
+  if (seen.has(o.name)) continue;
+  seen.add(o.name);
+  if ((o.ratingValue || 0) >= MIN_RATING && (o.price || 0) > MIN_PRICE) hotels.push(o);
 }
 
+console.log(`Unique hotels matching filters: ${hotels.length}\n`);
+
+let found = 0;
+let apiCalls = 0;
+const notFound = [];
+let completed = 0;
+
+// Process in parallel batches
+for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
+  const batch = hotels.slice(b, b + BATCH_SIZE);
+
+  await Promise.all(batch.map(async (h) => {
+    const idx = hotels.indexOf(h);
+    try {
+      const g = await fetchGoogleRating(h.name, h.city, h.country, cache);
+      if (!g.fromCache) apiCalls++;
+
+      for (const o of offers) {
+        if (o.name === h.name) {
+          o.googleRating = g.rating;
+          o.googleRatingsTotal = g.totalRatings;
+          o.googleMapsUrl = g.mapsUrl;
+        }
+      }
+
+      completed++;
+      const tag = g.fromCache ? "cache" : "api";
+      if (g.rating > 0) {
+        found++;
+        process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> ${g.rating} (${g.totalRatings}) [${tag}]\n`);
+      } else {
+        notFound.push(h);
+        process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> \u2717 not found [${tag}]\n`);
+      }
+    } catch (err) {
+      for (const o of offers) {
+        if (o.name === h.name) { o.googleRating = 0; o.googleRatingsTotal = 0; o.googleMapsUrl = null; }
+      }
+      notFound.push(h);
+      completed++;
+      process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> \u2717 error: ${err.message}\n`);
+    }
+  }));
+
+  if (b + BATCH_SIZE < hotels.length) await sleep(BATCH_DELAY_MS);
+}
+
+await saveCache(cache);
 await writeFile(filePath, JSON.stringify(offers, null, 2));
 
 // ── Summary ─────────────────────────────────────────────────
 console.log(`\n--- Done ---`);
-console.log(`Total:     ${total}`);
-console.log(`Found:     ${found} (${((found / total) * 100).toFixed(1)}%)`);
-console.log(`Not found: ${notFound.length} (${((notFound.length / total) * 100).toFixed(1)}%)`);
+console.log(`Hotels:    ${hotels.length}`);
+console.log(`Found:     ${found} (${((found / hotels.length) * 100).toFixed(1)}%)`);
+console.log(`Not found: ${notFound.length}`);
+console.log(`API calls: ${apiCalls} (${hotels.length - apiCalls} from cache)`);
 
 if (notFound.length) {
   console.log(`\nNot found hotels:`);
@@ -190,3 +238,4 @@ if (notFound.length) {
 }
 
 console.log(`\nSaved -> ${filePath}`);
+console.log(`Cache -> ${CACHE_FILE}`);

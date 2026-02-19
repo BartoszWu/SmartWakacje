@@ -260,13 +260,41 @@ await writeFile(
   JSON.stringify({ totalCount: total, fetchedCount: allOffers.length, offers: allOffers, fetchedAt: new Date().toISOString() }, null, 2)
 );
 
-// 2. Parsed file
+// 2. Parsed file (JSON)
 const parsed = allOffers.map(parseOffer);
 const parsedFile = `data/offers_${DEPARTURE_DATE}_${ARRIVAL_DATE}.json`;
 await writeFile(parsedFile, JSON.stringify(parsed, null, 2));
+
+// 3. CSV file
+const CSV_COLUMNS = [
+  "name", "placeName", "url", "country", "region", "city",
+  "duration", "departureDate", "returnDate",
+  "ratingString", "ratingValue", "ratingRecommends", "ratingReservationCount",
+  "price", "pricePerPerson", "priceOld", "priceDiscount",
+  "category", "serviceDesc", "tourOperator",
+  "departurePlace", "departureTypeName",
+  "promoLastMinute", "promoFirstMinute", "employeeRatingCount", "photo",
+];
+
+function escapeCsv(val) {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+const csvRows = [
+  CSV_COLUMNS.join(","),
+  ...parsed.map((o) => CSV_COLUMNS.map((col) => escapeCsv(o[col])).join(",")),
+];
+const csvFile = `data/offers_${DEPARTURE_DATE}_${ARRIVAL_DATE}.csv`;
+await writeFile(csvFile, "\uFEFF" + csvRows.join("\n"), "utf8");
 
 const prices = parsed.map((o) => o.price).filter(Boolean);
 console.log(`\nSaved ${allOffers.length} offers`);
 console.log(`  raw    → ${rawFile}`);
 console.log(`  parsed → ${parsedFile}`);
+console.log(`  csv    → ${csvFile}`);
 console.log(`  Price: ${Math.min(...prices)} – ${Math.max(...prices)} PLN (avg ${Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)})`);
