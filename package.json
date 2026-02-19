@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "fetch": "node scrape.js",
-    "fetch:custom": "node scrape.js"
+    "fetch:custom": "node scrape.js",
+    "enrich": "node enrich-ratings.js"
   },
   "keywords": [],
   "author": "",
