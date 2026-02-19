@@ -1,0 +1,14 @@
+{
+  "name": "smartwakacje",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "scrape": "node src/scrape.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "wakacje.pl offer scraper & analyzer"
+}
