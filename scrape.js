@@ -9,7 +9,7 @@
  */
 
 import https from "node:https";
-import { writeFile } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 
 // ── Config ──────────────────────────────────────────────────
 const DEPARTURE_DATE = process.argv[2] || "2026-06-19";
@@ -250,6 +250,8 @@ while (true) {
   page++;
   await sleep(DELAY_MS);
 }
+
+await mkdir("data", { recursive: true });
 
 // 1. Raw file
 const rawFile = `data/raw_${DEPARTURE_DATE}_${ARRIVAL_DATE}.json`;
