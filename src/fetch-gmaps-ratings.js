@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Enriches parsed offers JSON with Google Maps ratings.
+ * Fetches Google Maps ratings for hotels from offers JSON.
  * Only processes hotels with ratingValue >= 8.5 and price > 14000.
- * Uses google-ratings-cache.json to avoid duplicate API calls.
- * Sends requests in parallel batches for speed.
+ * Saves results to data/google-ratings-cache.json (shared with server.js).
+ * Does NOT modify the offers file — use enrich.js for that.
  *
- * Usage:  node enrich-ratings.js [path/to/offers.json]
+ * Usage:  node src/fetch-gmaps-ratings.js [path/to/offers.json]
  *         If no path given, auto-detects newest data/offers_*.json
- *
- * Adds to each qualifying offer:
- *   googleRating        — Google Maps rating (0 if not found)
- *   googleRatingsTotal  — number of Google reviews (0 if not found)
- *   googleMapsUrl       — link to Google Maps place (null if not found)
  */
 
 import https from "node:https";
@@ -25,16 +20,14 @@ if (!GOOGLE_API_KEY) {
   console.error("Missing GOOGLE_MAPS_API_KEY in .env");
   process.exit(1);
 }
-const MIN_RATING = 8.5;
-const MIN_PRICE = 14000;
+const MIN_RATING = 8;
+const MAX_PRICE = 14000;
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200;
 const CACHE_FILE = "data/google-ratings-cache.json";
 // ────────────────────────────────────────────────────────────
 
-/**
- * Minimal .env loader — no external deps.
- */
+/** Minimal .env loader — no external deps. */
 async function loadEnv() {
   try {
     const txt = await readFile(".env", "utf-8");
@@ -157,8 +150,8 @@ async function fetchGoogleRating(name, city, country, cache) {
 // ── Main ────────────────────────────────────────────────────
 
 const filePath = process.argv[2] || (await findNewestOffers());
-console.log(`Enriching: ${filePath}`);
-console.log(`Filter:    ratingValue >= ${MIN_RATING}, price > ${MIN_PRICE.toLocaleString("pl")} zl`);
+console.log(`Reading:   ${filePath}`);
+console.log(`Filter:    ratingValue >= ${MIN_RATING}, price <= ${MAX_PRICE.toLocaleString("pl")} zl`);
 console.log(`Batch:     ${BATCH_SIZE} parallel, ${BATCH_DELAY_MS}ms between batches\n`);
 
 const offers = JSON.parse(await readFile(filePath, "utf-8"));
@@ -170,7 +163,7 @@ const hotels = [];
 for (const o of offers) {
   if (seen.has(o.name)) continue;
   seen.add(o.name);
-  if ((o.ratingValue || 0) >= MIN_RATING && (o.price || 0) > MIN_PRICE) hotels.push(o);
+  if ((o.ratingValue || 0) >= MIN_RATING && (o.price || 0) <= MAX_PRICE) hotels.push(o);
 }
 
 console.log(`Unique hotels matching filters: ${hotels.length}\n`);
@@ -185,18 +178,9 @@ for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
   const batch = hotels.slice(b, b + BATCH_SIZE);
 
   await Promise.all(batch.map(async (h) => {
-    const idx = hotels.indexOf(h);
     try {
       const g = await fetchGoogleRating(h.name, h.city, h.country, cache);
       if (!g.fromCache) apiCalls++;
-
-      for (const o of offers) {
-        if (o.name === h.name) {
-          o.googleRating = g.rating;
-          o.googleRatingsTotal = g.totalRatings;
-          o.googleMapsUrl = g.mapsUrl;
-        }
-      }
 
       completed++;
       const tag = g.fromCache ? "cache" : "api";
@@ -208,9 +192,6 @@ for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
         process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> \u2717 not found [${tag}]\n`);
       }
     } catch (err) {
-      for (const o of offers) {
-        if (o.name === h.name) { o.googleRating = 0; o.googleRatingsTotal = 0; o.googleMapsUrl = null; }
-      }
       notFound.push(h);
       completed++;
       process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> \u2717 error: ${err.message}\n`);
@@ -221,7 +202,6 @@ for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
 }
 
 await saveCache(cache);
-await writeFile(filePath, JSON.stringify(offers, null, 2));
 
 // ── Summary ─────────────────────────────────────────────────
 console.log(`\n--- Done ---`);
@@ -237,5 +217,4 @@ if (notFound.length) {
   }
 }
 
-console.log(`\nSaved -> ${filePath}`);
-console.log(`Cache -> ${CACHE_FILE}`);
+console.log(`\nCache -> ${CACHE_FILE}`);

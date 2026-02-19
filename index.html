@@ -1224,8 +1224,8 @@ const state = {
   priceMin: 0,
   priceMax: Infinity,
   priceTotalMin: 0,
-  priceTotalMax: 12000,
-  minRating: 0,
+  priceTotalMax: 14000,
+  minRating: 8,
   minStars: 0,
   service: "",
   page: 1,
@@ -1241,7 +1241,8 @@ const state = {
 // ============================================================
 async function loadOffers() {
   try {
-    document.getElementById("priceTotalMax").value = 12000;
+    document.getElementById("priceTotalMax").value = 14000;
+    document.getElementById("filterRating").value = "8";
     const res = await fetch("/api/offers");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     allOffers = await res.json();

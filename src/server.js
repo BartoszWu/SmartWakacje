@@ -7,7 +7,7 @@ import {
 import { join, extname } from "node:path";
 
 const PORT = 3000;
-const ROOT = import.meta.dirname;
+const ROOT = join(import.meta.dirname, "..");
 const DATA_DIR = join(ROOT, "data");
 const CACHE_FILE = join(DATA_DIR, "google-ratings-cache.json");
 
@@ -49,8 +49,11 @@ const COUNTRY_EN = {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Find newest offers_*.json in data/ */
+const DATA_FILE = join(DATA_DIR, "data.json");
+
+/** Returns path to data.json (enriched) or newest offers_*.json as fallback */
 function findLatestOffers() {
+  if (existsSync(DATA_FILE)) return DATA_FILE;
   if (!existsSync(DATA_DIR)) return null;
   const files = readdirSync(DATA_DIR)
     .filter((f) => f.startsWith("offers_") && f.endsWith(".json"))
@@ -253,7 +256,10 @@ const server = createServer(async (req, res) => {
   }
 
   const ext = extname(filePath);
-  res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+  res.writeHead(200, {
+    "Content-Type": MIME[ext] || "application/octet-stream",
+    "Cache-Control": "no-cache",
+  });
   res.end(readFileSync(filePath));
 });
 

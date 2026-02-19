@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "fetch": "node scrape.js",
-    "enrich": "node enrich-ratings.js"
+    "start": "node src/server.js",
+    "scrape": "node src/scrape.js",
+    "fetch-ratings": "node src/fetch-gmaps-ratings.js",
+    "enrich": "node src/enrich.js",
+    "report": "node src/report.js"
   },
   "keywords": [],
   "author": "",
