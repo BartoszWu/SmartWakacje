@@ -1,19 +1,18 @@
 {
   "name": "smartwakacje",
-  "version": "1.0.0",
-  "type": "module",
+  "private": true,
+  "workspaces": ["packages/*", "scripts"],
   "scripts": {
-    "start": "node src/server.js",
-    "scrape": "node src/scrape.js",
-    "fetch-gmaps": "node src/fetch-gmaps-ratings.js",
-    "fetch-ta": "node src/fetch-ta-ratings.js",
-    "fetch-trivago": "node src/fetch-trivago-ratings.js",
-    "fetch-all": "npm run fetch-gmaps && npm run fetch-ta && npm run fetch-trivago",
-    "enrich": "node src/enrich.js",
-    "report": "node src/report.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "wakacje.pl offer scraper & analyzer"
+    "dev": "~/.bun/bin/bun run dev:server & ~/.bun/bin/bun run dev:frontend",
+    "dev:server": "cd packages/server && ~/.bun/bin/bun --watch src/index.ts",
+    "dev:frontend": "cd packages/frontend && ~/.bun/bin/bun run dev",
+    "build": "cd packages/frontend && ~/.bun/bin/bun run build",
+    "scrape": "cd scripts && ~/.bun/bin/bun src/scrape.ts",
+    "enrich": "cd scripts && ~/.bun/bin/bun src/enrich.ts",
+    "report": "cd scripts && ~/.bun/bin/bun src/report.ts",
+    "fetch-gmaps": "cd scripts && ~/.bun/bin/bun src/fetch-ratings/google.ts",
+    "fetch-ta": "cd scripts && ~/.bun/bin/bun src/fetch-ratings/tripadvisor.ts",
+    "fetch-trivago": "cd scripts && ~/.bun/bin/bun src/fetch-ratings/trivago.ts",
+    "fetch-all": "~/.bun/bin/bun run fetch-gmaps && ~/.bun/bin/bun run fetch-ta && ~/.bun/bin/bun run fetch-trivago"
+  }
 }

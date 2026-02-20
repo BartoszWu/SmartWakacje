@@ -2,35 +2,141 @@
 
 Scraper ofert wakacyjnych z wakacje.pl. Pobiera oferty przez reverse-engineered API i zapisuje do JSON.
 
+## Tech Stack
+
+- **Runtime**: Bun
+- **Frontend**: Vite + React 18 + TypeScript + Tailwind
+- **Backend**: Bun server + tRPC
+- **State**: Zustand
+- **Typy**: Wspólne w `@smartwakacje/shared`
+
 ## Struktura projektu
 
 ```
-scrape.js          — glowny skrypt, jedyny plik do odpalenia
-src/wakacje-api.js — biblioteka API (nieuzywana przez scrape.js, legacy)
-src/scrape.js      — stary entry point (nieuzywany, legacy)
-docs/WakacjeAPI.md — dokumentacja reverse-engineered API wakacje.pl
-data/              — output scraperа (gitignored)
+smartwakacje/
+├── package.json              # Workspace root + scripts
+├── config.ts                 # Konfiguracja (scraper + fetch + report)
+├── .env                      # API keys
+│
+├── packages/
+│   ├── shared/               # Typy + utils
+│   │   └── src/
+│   │       ├── types.ts      # Offer, Filters, Ratings, etc.
+│   │       └── utils.ts      # formatDate, normalizeName, etc.
+│   │
+│   ├── server/               # Bun + tRPC backend
+│   │   └── src/
+│   │       ├── index.ts      # Server entry
+│   │       ├── trpc.ts       # tRPC setup
+│   │       ├── routers/
+│   │       │   └── offers.ts # tRPC router
+│   │       └── services/
+│   │           ├── cache.ts
+│   │           ├── google.ts
+│   │           ├── tripadvisor.ts
+│   │           └── trivago.ts
+│   │
+│   └── frontend/             # Vite + React + Tailwind
+│       └── src/
+│           ├── main.tsx
+│           ├── App.tsx
+│           ├── trpc.ts
+│           ├── store/
+│           │   └── useStore.ts
+│           └── components/
+│
+├── scripts/
+│   └── src/
+│       ├── scrape.ts         # Main scraper
+│       ├── enrich.ts         # Merge offers with ratings
+│       ├── report.ts         # Generate CSV report
+│       └── fetch-ratings/
+│           ├── google.ts
+│           ├── tripadvisor.ts
+│           └── trivago.ts
+│
+├── data/                     # Output (gitignored)
+└── docs/                     # Dokumentacja API
 ```
 
-## Jak dziala scraper
+## Komendy
 
-`scrape.js` wysyla POST do `https://www.wakacje.pl/v2/api/offers` z payloadem opisanym w `docs/WakacjeAPI.md`. Paginuje po 50 ofert na strone z 1s opoznieniem miedzy requestami. Uzywa `node:https` zamiast `fetch` bo serwer zwraca HTTP 449 na Node fetch (bot detection po TLS fingerprint).
+```bash
+# Development
+bun run dev              # Start server + frontend
+bun run dev:server       # Start tRPC server (port 3000)
+bun run dev:frontend     # Start Vite dev server (port 5173)
 
-Produkuje 2 pliki:
-- `data/raw_<od>_<do>.json` — surowa odpowiedz API
-- `data/offers_<od>_<do>.json` — sparsowane pola (name, url, price, rating, etc.)
+# Build
+bun run build            # Build frontend for production
 
-## Konfiguracja wyszukiwania
+# Scraping
+bun run scrape           # Pobierz oferty z wakacje.pl
+bun run enrich           # Merge offers with ratings cache
+bun run report           # Generate filtered CSV report
 
-Parametry wyszukiwania sa w sekcji `// Config` na gorze `scrape.js` (linie 14-25). Domyslne wartosci:
-- Daty: 2026-06-19 do 2026-06-30 (nadpisywalne przez CLI args)
-- Osoby: 2 doroslych + 2 dzieci (ur. 20190603, 20210125)
-- Wylot: Katowice (ID 2622)
-- Kraje: Tunezja (65) + Turcja (16)
-- Wyzywienie: All Inclusive (service: 1)
-- Filtr: dla dzieci (attribute: 29)
+# Ratings
+bun run fetch-gmaps      # Batch Google Maps ratings
+bun run fetch-ta         # Batch TripAdvisor ratings
+bun run fetch-trivago    # Batch Trivago ratings
+bun run fetch-all        # All three
+```
 
-Pelna lista znanych ID (kraje, lotniska, sortowanie, typy wyzywienia) jest w `docs/WakacjeAPI.md`.
+## Konfiguracja
+
+Wszystko w `config.ts`:
+
+### Scraper
+- `departureDateFrom` / `departureDateTo` — daty wyjazdu
+- `airports` — ID lotnisk (Katowice: 2622)
+- `countries` — ID krajów (Tunezja: 65, Turcja: 16)
+- `service` — typ wyżywienia (1 = All Inclusive)
+- `adults`, `children`, `childAges` — konfiguracja pokoi
+
+### Fetch ratings
+- `minRating` — min. wakacje.pl rating do pobierania
+- `maxPrice` — max cena do pobierania
+- `batchSize`, `batchDelayMs` — parametry batchowania
+
+### Report
+- `maxPrice`, `minGmaps`, `minTripAdvisor`, `minTrivago` — filtry
+
+## API tRPC
+
+| Endpoint | Opis |
+|----------|------|
+| `offers.list` | Zwraca wszystkie oferty |
+| `offers.fetchGoogleRating` | Pobiera rating z Google Maps |
+| `offers.selectGoogleRating` | Zaznacza wynik z wielu |
+| `offers.fetchTARating` | Pobiera rating z TripAdvisor |
+| `offers.selectTARating` | Zaznacza wynik z wielu |
+| `offers.fetchTrivagoRating` | Pobiera rating z Trivago |
+
+## Typy
+
+Główne typy w `packages/shared/src/types.ts`:
+
+```typescript
+interface Offer {
+  id: string;
+  name: string;
+  country: string;
+  price: number;
+  pricePerPerson: number;
+  ratingValue: number;
+  googleRating?: number;
+  trivagoRating?: number;
+  taRating?: number;
+  // ...
+}
+```
+
+## .env
+
+```
+GOOGLE_MAPS_API_KEY=xxx
+TRIPADVISOR_API_KEY=xxx
+```
 
 ## API wakacje.pl — kluczowe fakty
 
@@ -40,13 +146,11 @@ Pelna lista znanych ID (kraje, lotniska, sortowanie, typy wyzywienia) jest w `do
 - Paginacja: `params.query.pageNumber` (1-indexed), `params.limit` (max 50)
 - Pokoje: `rooms: [{ adult: 2, kid: 2, ages: ["YYYYMMDD", ...] }]`
 - Wymagane headery: `Content-Type`, `User-Agent` (browser), `Origin`, `Referer`
-- WAZNE: uzyj `node:https`, nie `fetch` — serwer blokuje Node fetch (HTTP 449)
 
 Szczegoly w `docs/WakacjeAPI.md`.
 
 ## Konwencje
 
-- Jezyk kodu: angielski
-- Jezyk komentarzy/docs: polski (README, AGENTS) lub angielski (kod, JSDoc)
-- Brak zewnetrznych zaleznosci — tylko Node stdlib (`node:https`, `node:fs`)
-- ESM (`"type": "module"` w package.json)
+- Język kodu: angielski
+- Język komentarzy/docs: polski (README, AGENTS) lub angielski (kod, JSDoc)
+- ESM (`"type": "module"`)

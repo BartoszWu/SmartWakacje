@@ -1,0 +1,17 @@
+{
+  "name": "@smartwakacje/scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scrape": "~/.bun/bin/bun src/scrape.ts",
+    "enrich": "~/.bun/bin/bun src/enrich.ts",
+    "report": "~/.bun/bin/bun src/report.ts",
+    "fetch-gmaps": "~/.bun/bin/bun src/fetch-ratings/google.ts",
+    "fetch-ta": "~/.bun/bin/bun src/fetch-ratings/tripadvisor.ts",
+    "fetch-trivago": "~/.bun/bin/bun src/fetch-ratings/trivago.ts"
+  },
+  "dependencies": {
+    "@smartwakacje/shared": "*"
+  }
+}
