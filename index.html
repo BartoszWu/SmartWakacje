@@ -283,12 +283,75 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto;
   padding: 0 2rem .6rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: .5rem;
-  align-items: end;
+  flex-direction: column;
+  gap: .45rem;
   position: relative;
   z-index: 49;
 }
+
+.filter-row-top {
+  display: flex;
+  align-items: end;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
+.filter-spacer { flex: 1; }
+
+.filter-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .28rem .55rem;
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(232,220,200,.07);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.filter-sep {
+  width: 1px;
+  height: 15px;
+  background: rgba(232,220,200,.12);
+  margin: 0 .2rem;
+  flex-shrink: 0;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .1rem .2rem;
+}
+
+.filter-pill-label {
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-pill-label.accent-gold  { color: var(--gold); opacity: .85; }
+.filter-pill-label.accent-blue  { color: #6aabf7; opacity: .85; }
+.filter-pill-label.accent-trv   { color: #a78bfa; opacity: .85; }
+.filter-pill-label.accent-ta    { color: #4ade80; opacity: .85; }
+.filter-pill-label.accent-dim   { color: var(--sand-dim); opacity: .75; }
+
+.filter-pill .filter-select {
+  border: none;
+  background: transparent;
+  padding: .22rem .9rem .22rem .1rem;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--sand-bright);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%23a89b88'%3E%3Cpath d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .05rem center;
+}
+
+.filter-pill .filter-select:focus { outline: none; }
 
 .filter-group {
   display: flex;
@@ -371,7 +434,6 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
   cursor: pointer;
   transition: all .2s;
-  align-self: end;
 }
 
 .filter-reset:hover { background: rgba(207,68,68,.12); border-color: var(--red); }
@@ -380,48 +442,112 @@ a { color: inherit; text-decoration: none; }
   font-size: .7rem;
   font-weight: 600;
   color: var(--accent);
-  align-self: end;
-  padding-bottom: .45rem;
+  padding-bottom: .1rem;
 }
 
-/* Google fetch-all button */
-.google-fetch-all {
-  padding: .4rem .75rem;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(74,142,201,.3);
-  background: rgba(74,142,201,.08);
-  color: var(--blue);
-  font-family: var(--font-body);
-  font-size: .72rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .2s;
-  align-self: end;
+/* Fetch menu dropdown */
+.fetch-menu-wrap {
+  position: relative;
+}
+
+.fetch-menu-btn {
   display: inline-flex;
   align-items: center;
-  gap: .35rem;
+  gap: .45rem;
+  padding: .42rem .75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(232,220,200,.15);
+  background: rgba(232,220,200,.05);
+  color: var(--sand-dim);
+  font-family: var(--font-body);
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, color .18s;
+  white-space: nowrap;
+  letter-spacing: .02em;
+}
+
+.fetch-menu-btn:hover {
+  background: rgba(232,220,200,.1);
+  border-color: rgba(232,220,200,.3);
+  color: var(--sand-bright);
+}
+
+.fetch-menu-btn svg { opacity: .7; transition: transform .2s; }
+.fetch-menu-wrap.open .fetch-menu-btn svg { transform: rotate(180deg); }
+
+.fetch-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #1e1a14;
+  border: 1px solid rgba(232,220,200,.12);
+  border-radius: var(--radius-sm);
+  padding: .3rem;
+  min-width: 200px;
+  z-index: 200;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  animation: popIn .15s ease-out;
+}
+
+.fetch-menu-wrap.open .fetch-dropdown { display: block; }
+
+.fetch-item {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  width: 100%;
+  padding: .5rem .65rem;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--sand-dim);
+  font-family: var(--font-body);
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, color .15s;
   white-space: nowrap;
 }
 
-.google-fetch-all:hover { background: rgba(74,142,201,.15); border-color: var(--blue); }
+.fetch-item:hover { background: rgba(255,255,255,.06); color: var(--sand-bright); }
+.fetch-item:disabled { opacity: .45; cursor: default; }
+.fetch-item:disabled:hover { background: transparent; color: var(--sand-dim); }
 
-.google-fetch-all:disabled {
-  opacity: .6;
-  cursor: default;
+.fetch-item-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
+.dot-gmaps { background: #6aabf7; }
+.dot-trv   { background: #a78bfa; }
+.dot-ta    { background: #4ade80; }
 
-.google-fetch-all:disabled:hover {
-  background: rgba(74,142,201,.08);
-  border-color: rgba(74,142,201,.3);
-}
+.fetch-item-label { flex: 1; }
 
-.google-fetch-all .g-logo { font-size: 12px; }
-
-.google-fetch-progress {
-  font-size: .65rem;
+.fetch-item-progress {
+  font-size: .68rem;
   font-weight: 700;
-  color: var(--sand-bright);
+  opacity: .8;
+  font-variant-numeric: tabular-nums;
 }
+
+.fetch-divider {
+  height: 1px;
+  background: rgba(232,220,200,.07);
+  margin: .25rem .3rem;
+}
+
+.fetch-item-all {
+  color: var(--sand-dim);
+  font-size: .72rem;
+  font-weight: 500;
+}
+
+.fetch-item-all .fetch-item-dot { background: var(--gold); }
 
 @media (max-width: 900px) {
   .filter-bar { padding: 0 1rem .5rem; }
@@ -824,32 +950,7 @@ a { color: inherit; text-decoration: none; }
   animation: popIn .15s ease-out;
 }
 
-/* TA fetch-all button */
-.ta-fetch-all {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .4rem .75rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(52,183,114,.3);
-  background: rgba(52,183,114,.08);
-  color: #34b772;
-  font-size: .75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .2s;
-  white-space: nowrap;
-}
 
-.ta-fetch-all:hover {
-  background: rgba(52,183,114,.18);
-  border-color: #34b772;
-}
-
-.ta-fetch-progress {
-  font-size: .7rem;
-  opacity: .7;
-}
 
 /* Tooltip for not-found */
 .google-tooltip {
@@ -1224,12 +1325,15 @@ a { color: inherit; text-decoration: none; }
   <div class="sort-group">
     <span class="sort-label">Sortuj</span>
     <select class="sort-select" id="sortPrimary">
-      <option value="ratingValue">Ocena</option>
+      <option value="ratingValue">Wakacje.pl</option>
+      <option value="googleRating">GMaps</option>
+      <option value="trivagoRating">Trivago</option>
+      <option value="taRating">TripAdvisor</option>
+      <option value="employeeRatingCount">Ocen prac.</option>
       <option value="pricePerPerson">Cena / os</option>
       <option value="price">Cena total</option>
       <option value="ratingRecommends">Polecenia</option>
       <option value="ratingReservationCount">Rezerwacje</option>
-      <option value="employeeRatingCount">Oceny pracownikow</option>
       <option value="category">Gwiazdki</option>
       <option value="duration">Czas trwania</option>
     </select>
@@ -1241,11 +1345,14 @@ a { color: inherit; text-decoration: none; }
     <span class="sort-label">potem</span>
     <select class="sort-select" id="sortSecondary">
       <option value="pricePerPerson">Cena / os</option>
-      <option value="ratingValue">Ocena</option>
+      <option value="ratingValue">Wakacje.pl</option>
+      <option value="googleRating">GMaps</option>
+      <option value="trivagoRating">Trivago</option>
+      <option value="taRating">TripAdvisor</option>
+      <option value="employeeRatingCount">Ocen prac.</option>
       <option value="price">Cena total</option>
       <option value="ratingRecommends">Polecenia</option>
       <option value="ratingReservationCount">Rezerwacje</option>
-      <option value="employeeRatingCount">Oceny pracownikow</option>
       <option value="category">Gwiazdki</option>
       <option value="duration">Czas trwania</option>
     </select>
@@ -1255,94 +1362,142 @@ a { color: inherit; text-decoration: none; }
 
 <!-- FILTER BAR -->
 <div class="filter-bar" id="filterBar">
-  <div class="filter-group">
-    <span class="filter-label">Cena / os (zl)</span>
-    <div class="filter-row">
-      <input class="filter-input" id="priceMin" type="number" placeholder="od" min="0" step="100">
-      <span class="filter-dash">&ndash;</span>
-      <input class="filter-input" id="priceMax" type="number" placeholder="do" min="0" step="100">
+
+  <!-- Rząd 1: ceny + akcje -->
+  <div class="filter-row-top">
+    <div class="filter-group">
+      <span class="filter-label">Cena / os (zł)</span>
+      <div class="filter-row">
+        <input class="filter-input" id="priceMin" type="number" placeholder="od" min="0" step="100">
+        <span class="filter-dash">&ndash;</span>
+        <input class="filter-input" id="priceMax" type="number" placeholder="do" min="0" step="100">
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Cena total (zł)</span>
+      <div class="filter-row">
+        <input class="filter-input" id="priceTotalMin" type="number" placeholder="od" min="0" step="500">
+        <span class="filter-dash">&ndash;</span>
+        <input class="filter-input" id="priceTotalMax" type="number" placeholder="do" min="0" step="500">
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Gwiazdki</span>
+      <select class="filter-select" id="filterStars">
+        <option value="0">Wszystkie</option>
+        <option value="3">3+</option>
+        <option value="4">4+</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+
+    <div class="filter-spacer"></div>
+
+    <span class="filter-active-count" id="filterActiveCount"></span>
+    <button class="filter-reset" id="filterReset">Resetuj filtry</button>
+
+    <div class="fetch-menu-wrap" id="fetchMenuWrap">
+      <button class="fetch-menu-btn" id="fetchMenuBtn">
+        Pobierz dane
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="2 4 6 8 10 4"/>
+        </svg>
+      </button>
+      <div class="fetch-dropdown" id="fetchDropdown">
+        <button class="fetch-item" id="googleFetchAll">
+          <span class="fetch-item-dot dot-gmaps"></span>
+          <span class="fetch-item-label">Google Maps</span>
+          <span class="fetch-item-progress" id="googleFetchProgress"></span>
+        </button>
+        <button class="fetch-item" id="trvFetchAll">
+          <span class="fetch-item-dot dot-trv"></span>
+          <span class="fetch-item-label">Trivago</span>
+          <span class="fetch-item-progress" id="trvFetchProgress"></span>
+        </button>
+        <button class="fetch-item" id="taFetchAll">
+          <span class="fetch-item-dot dot-ta"></span>
+          <span class="fetch-item-label">TripAdvisor</span>
+          <span class="fetch-item-progress" id="taFetchProgress"></span>
+        </button>
+        <div class="fetch-divider"></div>
+        <button class="fetch-item fetch-item-all" id="fetchAllSources">
+          <span class="fetch-item-dot" style="background:var(--gold)"></span>
+          <span class="fetch-item-label">Pobierz wszystkie</span>
+          <span class="fetch-item-progress" id="allFetchProgress"></span>
+        </button>
+      </div>
     </div>
   </div>
 
-  <div class="filter-group">
-    <span class="filter-label">Cena total (zl)</span>
-    <div class="filter-row">
-      <input class="filter-input" id="priceTotalMin" type="number" placeholder="od" min="0" step="500">
-      <span class="filter-dash">&ndash;</span>
-      <input class="filter-input" id="priceTotalMax" type="number" placeholder="do" min="0" step="500">
+  <!-- Rząd 2: ratingi jako pill-bar -->
+  <div class="filter-row-bottom">
+
+    <div class="filter-pill">
+      <span class="filter-pill-label accent-gold">W</span>
+      <select class="filter-select" id="filterRating">
+        <option value="0">Wakacje.pl</option>
+        <option value="6">6+</option>
+        <option value="7">7+</option>
+        <option value="7.5">7.5+</option>
+        <option value="8">8+</option>
+        <option value="8.5">8.5+</option>
+        <option value="9">9+</option>
+      </select>
     </div>
+
+    <div class="filter-pill">
+      <span class="filter-pill-label accent-blue">G</span>
+      <select class="filter-select" id="filterGmaps">
+        <option value="0">GMaps</option>
+        <option value="3.5">3.5+</option>
+        <option value="4">4.0+</option>
+        <option value="4.2">4.2+</option>
+        <option value="4.5">4.5+</option>
+        <option value="4.7">4.7+</option>
+      </select>
+    </div>
+
+    <div class="filter-pill">
+      <span class="filter-pill-label accent-trv">tv</span>
+      <select class="filter-select" id="filterTrivago">
+        <option value="0">Trivago</option>
+        <option value="7">7.0+</option>
+        <option value="7.5">7.5+</option>
+        <option value="8">8.0+</option>
+        <option value="8.5">8.5+</option>
+        <option value="9">9.0+</option>
+      </select>
+    </div>
+
+    <div class="filter-pill">
+      <span class="filter-pill-label accent-ta">TA</span>
+      <select class="filter-select" id="filterTA">
+        <option value="0">TripAdvisor</option>
+        <option value="3.5">3.5+</option>
+        <option value="4">4.0+</option>
+        <option value="4.2">4.2+</option>
+        <option value="4.5">4.5+</option>
+      </select>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <div class="filter-pill">
+      <span class="filter-pill-label accent-dim">✎</span>
+      <select class="filter-select" id="filterEmployeeRating">
+        <option value="0">Ocen prac.</option>
+        <option value="1">1+</option>
+        <option value="3">3+</option>
+        <option value="5">5+</option>
+        <option value="10">10+</option>
+        <option value="20">20+</option>
+      </select>
+    </div>
+
   </div>
 
-  <div class="filter-group">
-    <span class="filter-label">Min. ocena</span>
-    <select class="filter-select" id="filterRating">
-      <option value="0">Wszystkie</option>
-      <option value="6">6+</option>
-      <option value="7">7+</option>
-      <option value="7.5">7.5+</option>
-      <option value="8">8+</option>
-      <option value="8.5">8.5+</option>
-      <option value="9">9+</option>
-    </select>
-  </div>
-
-  <div class="filter-group">
-    <span class="filter-label">Min. GMaps</span>
-    <select class="filter-select" id="filterGmaps">
-      <option value="0">Wszystkie</option>
-      <option value="3.5">3.5+</option>
-      <option value="4">4.0+</option>
-      <option value="4.2">4.2+</option>
-      <option value="4.5">4.5+</option>
-      <option value="4.7">4.7+</option>
-    </select>
-  </div>
-
-  <div class="filter-group">
-    <span class="filter-label">Min. gwiazdki</span>
-    <select class="filter-select" id="filterStars">
-      <option value="0">Wszystkie</option>
-      <option value="3">3+</option>
-      <option value="4">4+</option>
-      <option value="5">5</option>
-    </select>
-  </div>
-
-  <div class="filter-group">
-    <span class="filter-label">Wyzywienie</span>
-    <select class="filter-select" id="filterService">
-      <option value="">Wszystkie</option>
-    </select>
-  </div>
-
-  <div class="filter-group">
-    <span class="filter-label">Min. Trivago</span>
-    <select class="filter-select" id="filterTrivago">
-      <option value="0">Wszystkie</option>
-      <option value="7">7.0+</option>
-      <option value="7.5">7.5+</option>
-      <option value="8">8.0+</option>
-      <option value="8.5">8.5+</option>
-      <option value="9">9.0+</option>
-    </select>
-  </div>
-
-  <button class="filter-reset" id="filterReset">Resetuj filtry</button>
-  <button class="google-fetch-all" id="googleFetchAll">
-    <span class="g-logo">G</span> Pobierz ratingi
-    <span class="google-fetch-progress" id="googleFetchProgress"></span>
-  </button>
-  <button class="ta-fetch-all" id="taFetchAll">
-    <svg class="ta-owl" width="16" height="16" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 2c6.627 0 12 5.373 12 12S22.627 28 16 28 4 22.627 4 16 9.373 4 16 4zm-4 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm8 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4 7c-2.5 0-4.5 1-5.5 2.5h11C20.5 19 18.5 18 16 18z"/></svg>
-    Pobierz TA
-    <span class="ta-fetch-progress" id="taFetchProgress"></span>
-  </button>
-  <button class="trv-fetch-all" id="trvFetchAll">
-    <span style="font-family:var(--font-display);font-weight:700">tv</span>
-    Pobierz Trivago
-    <span class="trv-fetch-progress" id="trvFetchProgress"></span>
-  </button>
-  <span class="filter-active-count" id="filterActiveCount"></span>
 </div>
 
 <!-- Offer count -->
@@ -1373,7 +1528,8 @@ const state = {
   minGmaps: 0,
   minStars: 0,
   minTrivago: 0,
-  service: "",
+  minTA: 0,
+  minEmployeeRating: 0,
   page: 1,
   perPage: 20,
   sortPrimary: "ratingValue",
@@ -1392,7 +1548,6 @@ async function loadOffers() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     allOffers = (await res.json()).map((o, i) => ({ ...o, _uid: i }));
     buildCountryPills();
-    buildServiceFilter();
     applyFilters();
     updateStats();
   } catch (err) {
@@ -1426,20 +1581,6 @@ function buildCountryPills() {
     pill.classList.add("active");
     state.country = pill.dataset.country;
     applyFilters();
-  });
-}
-
-// ============================================================
-// SERVICE FILTER (dynamic)
-// ============================================================
-function buildServiceFilter() {
-  const services = [...new Set(allOffers.map((o) => o.serviceDesc).filter(Boolean))].sort();
-  const sel = document.getElementById("filterService");
-  services.forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s;
-    opt.textContent = s;
-    sel.appendChild(opt);
   });
 }
 
@@ -1482,11 +1623,14 @@ function applyFilters() {
   // Min Trivago rating (scale 1–10)
   if (state.minTrivago > 0) list = list.filter((o) => (o.trivagoRating || 0) >= state.minTrivago);
 
+  // Min TripAdvisor rating (scale 1–5)
+  if (state.minTA > 0) list = list.filter((o) => (o.taRating || 0) >= state.minTA);
+
   // Min stars
   if (state.minStars > 0) list = list.filter((o) => (o.category || 0) >= state.minStars);
 
-  // Service type
-  if (state.service) list = list.filter((o) => o.serviceDesc === state.service);
+  // Min employee rating count
+  if (state.minEmployeeRating > 0) list = list.filter((o) => (o.employeeRatingCount || 0) >= state.minEmployeeRating);
 
   updateActiveFilterCount();
 
@@ -1511,21 +1655,23 @@ function applyFilters() {
   filteredOffers = list;
   render();
   updateOfferCount();
+  updateStats();
 }
 
 // ============================================================
 // STATS
 // ============================================================
 function updateStats() {
-  const n = allOffers.length;
-  const avgPrice = n ? Math.round(allOffers.reduce((s, o) => s + o.pricePerPerson, 0) / n) : 0;
-  const avgRating = n ? (allOffers.reduce((s, o) => s + (o.ratingValue || 0), 0) / n).toFixed(1) : 0;
-  const minPrice = n ? Math.min(...allOffers.map((o) => o.pricePerPerson)) : 0;
+  const src = filteredOffers.length ? filteredOffers : allOffers;
+  const n = src.length;
+  const avgPrice = n ? Math.round(src.reduce((s, o) => s + o.pricePerPerson, 0) / n) : 0;
+  const avgRating = n ? (src.reduce((s, o) => s + (o.ratingValue || 0), 0) / n).toFixed(1) : 0;
+  const minPrice = n ? Math.min(...src.map((o) => o.pricePerPerson)) : 0;
 
   document.getElementById("statCount").textContent = ` ${n}`;
-  document.getElementById("statAvgPrice").textContent = ` ${avgPrice.toLocaleString("pl")} zl`;
+  document.getElementById("statAvgPrice").textContent = ` ${avgPrice.toLocaleString("pl")} zł`;
   document.getElementById("statAvgRating").textContent = ` ${avgRating}`;
-  document.getElementById("statMinPrice").textContent = ` ${minPrice.toLocaleString("pl")} zl`;
+  document.getElementById("statMinPrice").textContent = ` ${minPrice.toLocaleString("pl")} zł`;
 }
 
 function updateActiveFilterCount() {
@@ -1537,8 +1683,9 @@ function updateActiveFilterCount() {
   if (state.minRating > 0) count++;
   if (state.minGmaps > 0) count++;
   if (state.minTrivago > 0) count++;
+  if (state.minTA > 0) count++;
   if (state.minStars > 0) count++;
-  if (state.service) count++;
+  if (state.minEmployeeRating > 0) count++;
   const el = document.getElementById("filterActiveCount");
   el.textContent = count > 0 ? `${count} aktywn${count === 1 ? "y" : "e"} filtr${count === 1 ? "" : "y"}` : "";
 }
@@ -2145,7 +2292,8 @@ async function runBatch(btnId, progressId, toFetch, fetchFn) {
 }
 
 let batchRunning = false;
-document.getElementById("googleFetchAll").addEventListener("click", async () => {
+document.getElementById("googleFetchAll").addEventListener("click", async (e) => {
+  e.stopPropagation();
   if (batchRunning) return; batchRunning = true;
   const toFetch = pageHotels().filter((o) => !(o.googleRating > 0) && !(o.googleRating === 0 && o.googleMapsUrl === null));
   await runBatch("googleFetchAll", "googleFetchProgress", toFetch, async (o) => {
@@ -2161,7 +2309,8 @@ document.getElementById("googleFetchAll").addEventListener("click", async () => 
 });
 
 let taBatchRunning = false;
-document.getElementById("taFetchAll").addEventListener("click", async () => {
+document.getElementById("taFetchAll").addEventListener("click", async (e) => {
+  e.stopPropagation();
   if (taBatchRunning) return; taBatchRunning = true;
   const toFetch = pageHotels().filter((o) => o.taRating == null && !(o.taRating === 0 && o.taUrl === null));
   await runBatch("taFetchAll", "taFetchProgress", toFetch, async (o) => {
@@ -2177,7 +2326,8 @@ document.getElementById("taFetchAll").addEventListener("click", async () => {
 });
 
 let trvBatchRunning = false;
-document.getElementById("trvFetchAll").addEventListener("click", async () => {
+document.getElementById("trvFetchAll").addEventListener("click", async (e) => {
+  e.stopPropagation();
   if (trvBatchRunning) return; trvBatchRunning = true;
   const toFetch = pageHotels().filter((o) => o.trivagoRating == null && !o._trivagoNotFound);
   await runBatch("trvFetchAll", "trvFetchProgress", toFetch, async (o) => {
@@ -2190,6 +2340,84 @@ document.getElementById("trvFetchAll").addEventListener("click", async () => {
     return false;
   });
   trvBatchRunning = false;
+});
+
+// ============================================================
+// FETCH MENU — toggle + "Pobierz wszystkie"
+// ============================================================
+const fetchMenuWrap = document.getElementById("fetchMenuWrap");
+const fetchMenuBtn  = document.getElementById("fetchMenuBtn");
+
+fetchMenuBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  fetchMenuWrap.classList.toggle("open");
+});
+
+document.addEventListener("click", () => {
+  fetchMenuWrap.classList.remove("open");
+});
+
+// Prevent individual fetch-item clicks from closing the menu immediately
+document.getElementById("fetchDropdown").addEventListener("click", (e) => {
+  e.stopPropagation();
+});
+
+// "Pobierz wszystkie" — sequential gmaps → trv → ta
+document.getElementById("fetchAllSources").addEventListener("click", async (e) => {
+  e.stopPropagation();
+  const allProg = document.getElementById("allFetchProgress");
+  allProg.textContent = "▶";
+
+  // gmaps
+  if (!batchRunning) {
+    batchRunning = true;
+    const gToFetch = pageHotels().filter((o) => !(o.googleRating > 0) && !(o.googleRating === 0 && o.googleMapsUrl === null));
+    await runBatch("googleFetchAll", "googleFetchProgress", gToFetch, async (o) => {
+      try {
+        const params = new URLSearchParams({ name: o.name, city: o.city || "", country: o.country || "" });
+        const data = await fetch(`/api/google-rating?${params}`).then((r) => r.json());
+        if (data.results?.length > 0 && data.selected != null) { applyGmapsResult(o.name, data.results[data.selected]); return true; }
+        if (!data.results?.length) for (const x of allOffers) { if (x.name === o.name) { x.googleRating = 0; x.googleRatingsTotal = 0; x.googleMapsUrl = null; } }
+      } catch {}
+      return false;
+    });
+    batchRunning = false;
+  }
+
+  // trv
+  if (!trvBatchRunning) {
+    trvBatchRunning = true;
+    const trvToFetch = pageHotels().filter((o) => o.trivagoRating == null && !o._trivagoNotFound);
+    await runBatch("trvFetchAll", "trvFetchProgress", trvToFetch, async (o) => {
+      try {
+        const params = new URLSearchParams({ name: o.name });
+        const data = await fetch(`/api/trivago-rating?${params}`).then((r) => r.json());
+        if (data.results?.length > 0 && data.selected != null) { applyTrvResult(o.name, data.results[data.selected]); return true; }
+        if (!data.results?.length) for (const x of allOffers) { if (x.name === o.name) x._trivagoNotFound = true; }
+      } catch {}
+      return false;
+    });
+    trvBatchRunning = false;
+  }
+
+  // ta
+  if (!taBatchRunning) {
+    taBatchRunning = true;
+    const taToFetch = pageHotels().filter((o) => o.taRating == null && !(o.taRating === 0 && o.taUrl === null));
+    await runBatch("taFetchAll", "taFetchProgress", taToFetch, async (o) => {
+      try {
+        const params = new URLSearchParams({ name: o.name, city: o.city || "", country: o.country || "" });
+        const data = await fetch(`/api/ta-rating?${params}`).then((r) => r.json());
+        if (data.results?.length > 0 && data.selected != null) { applyTaResult(o.name, data.results[data.selected]); return true; }
+        if (!data.results?.length) for (const x of allOffers) { if (x.name === o.name) { x.taRating = 0; x.taReviewCount = 0; x.taUrl = null; } }
+      } catch {}
+      return false;
+    });
+    taBatchRunning = false;
+  }
+
+  allProg.textContent = "✓";
+  setTimeout(() => { allProg.textContent = ""; }, 4000);
 });
 
 // ============================================================
@@ -2294,13 +2522,18 @@ document.getElementById("filterTrivago").addEventListener("change", (e) => {
   applyFilters();
 });
 
+document.getElementById("filterTA").addEventListener("change", (e) => {
+  state.minTA = Number(e.target.value);
+  applyFilters();
+});
+
 document.getElementById("filterStars").addEventListener("change", (e) => {
   state.minStars = Number(e.target.value);
   applyFilters();
 });
 
-document.getElementById("filterService").addEventListener("change", (e) => {
-  state.service = e.target.value;
+document.getElementById("filterEmployeeRating").addEventListener("change", (e) => {
+  state.minEmployeeRating = Number(e.target.value);
   applyFilters();
 });
 
@@ -2312,8 +2545,9 @@ document.getElementById("filterReset").addEventListener("click", () => {
   state.minRating = 0;
   state.minGmaps = 0;
   state.minTrivago = 0;
+  state.minTA = 0;
   state.minStars = 0;
-  state.service = "";
+  state.minEmployeeRating = 0;
   document.getElementById("priceMin").value = "";
   document.getElementById("priceMax").value = "";
   document.getElementById("priceTotalMin").value = "";
@@ -2321,8 +2555,9 @@ document.getElementById("filterReset").addEventListener("click", () => {
   document.getElementById("filterRating").value = "0";
   document.getElementById("filterGmaps").value = "0";
   document.getElementById("filterTrivago").value = "0";
+  document.getElementById("filterTA").value = "0";
   document.getElementById("filterStars").value = "0";
-  document.getElementById("filterService").value = "";
+  document.getElementById("filterEmployeeRating").value = "0";
   applyFilters();
 });
 
