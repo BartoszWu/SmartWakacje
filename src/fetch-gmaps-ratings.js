@@ -20,7 +20,7 @@ if (!GOOGLE_API_KEY) {
   console.error("Missing GOOGLE_MAPS_API_KEY in .env");
   process.exit(1);
 }
-const MIN_RATING = 8;
+const MIN_RATING = 6;
 const MAX_PRICE = 14000;
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200;

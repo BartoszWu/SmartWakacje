@@ -1177,6 +1177,18 @@ a { color: inherit; text-decoration: none; }
   </div>
 
   <div class="filter-group">
+    <span class="filter-label">Min. GMaps</span>
+    <select class="filter-select" id="filterGmaps">
+      <option value="0">Wszystkie</option>
+      <option value="3.5">3.5+</option>
+      <option value="4">4.0+</option>
+      <option value="4.2">4.2+</option>
+      <option value="4.5">4.5+</option>
+      <option value="4.7">4.7+</option>
+    </select>
+  </div>
+
+  <div class="filter-group">
     <span class="filter-label">Min. gwiazdki</span>
     <select class="filter-select" id="filterStars">
       <option value="0">Wszystkie</option>
@@ -1225,7 +1237,8 @@ const state = {
   priceMax: Infinity,
   priceTotalMin: 0,
   priceTotalMax: 14000,
-  minRating: 8,
+  minRating: 0,
+  minGmaps: 0,
   minStars: 0,
   service: "",
   page: 1,
@@ -1242,7 +1255,6 @@ const state = {
 async function loadOffers() {
   try {
     document.getElementById("priceTotalMax").value = 14000;
-    document.getElementById("filterRating").value = "8";
     const res = await fetch("/api/offers");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     allOffers = await res.json();
@@ -1331,6 +1343,9 @@ function applyFilters() {
   // Min rating
   if (state.minRating > 0) list = list.filter((o) => (o.ratingValue || 0) >= state.minRating);
 
+  // Min Google Maps rating
+  if (state.minGmaps > 0) list = list.filter((o) => (o.googleRating || 0) >= state.minGmaps);
+
   // Min stars
   if (state.minStars > 0) list = list.filter((o) => (o.category || 0) >= state.minStars);
 
@@ -1384,6 +1399,7 @@ function updateActiveFilterCount() {
   if (state.priceTotalMin > 0) count++;
   if (state.priceTotalMax < Infinity) count++;
   if (state.minRating > 0) count++;
+  if (state.minGmaps > 0) count++;
   if (state.minStars > 0) count++;
   if (state.service) count++;
   const el = document.getElementById("filterActiveCount");
@@ -1887,6 +1903,11 @@ document.getElementById("filterRating").addEventListener("change", (e) => {
   applyFilters();
 });
 
+document.getElementById("filterGmaps").addEventListener("change", (e) => {
+  state.minGmaps = Number(e.target.value);
+  applyFilters();
+});
+
 document.getElementById("filterStars").addEventListener("change", (e) => {
   state.minStars = Number(e.target.value);
   applyFilters();
@@ -1903,6 +1924,7 @@ document.getElementById("filterReset").addEventListener("click", () => {
   state.priceTotalMin = 0;
   state.priceTotalMax = Infinity;
   state.minRating = 0;
+  state.minGmaps = 0;
   state.minStars = 0;
   state.service = "";
   document.getElementById("priceMin").value = "";
@@ -1910,6 +1932,7 @@ document.getElementById("filterReset").addEventListener("click", () => {
   document.getElementById("priceTotalMin").value = "";
   document.getElementById("priceTotalMax").value = "";
   document.getElementById("filterRating").value = "0";
+  document.getElementById("filterGmaps").value = "0";
   document.getElementById("filterStars").value = "0";
   document.getElementById("filterService").value = "";
   applyFilters();
