@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --grain-svg: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+html {
+  font-size: 15px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: theme('colors.bg');
+  color: theme('colors.sand');
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: .035;
+  background-image: var(--grain-svg);
+  background-size: 180px;
+}
+
+/* Ambient glow top-right */
+body::after {
+  content: "";
+  position: fixed;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212,98,26,.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: theme('colors.bg');
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(232,220,200,.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(232,220,200,.25);
+}
+
+/* Custom animations */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes segPulse {
+  0%, 100% { opacity: .35; }
+  50% { opacity: .9; }
+}
+
+/* Card entrance animation */
+.card-animate {
+  animation: cardIn .55s cubic-bezier(.22,1,.36,1) forwards;
+  opacity: 0;
+}
+
+/* Popover animation */
+.popover-animate {
+  animation: popIn .18s ease-out;
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(232,220,200,.15);
+  border-top-color: theme('colors.accent');
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+/* Rating pulse animation */
+.rating-pulse {
+  animation: segPulse 1s ease-in-out infinite;
+}

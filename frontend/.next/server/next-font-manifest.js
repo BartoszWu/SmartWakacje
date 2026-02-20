@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/bartosz.wisniewski/Repos/Others/SmartWakacje/frontend/src/app/layout\":[\"static/media/fa3e259cafa8f47e-s.p.woff2\",\"static/media/92daa4d0098aa288-s.p.woff2\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

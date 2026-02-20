@@ -2,8 +2,12 @@
   "name": "smartwakacje",
   "version": "1.0.0",
   "type": "module",
+  "private": true,
   "scripts": {
-    "start": "node src/server.js",
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix frontend",
+    "start:server": "node src/server.js",
     "scrape": "node src/scrape.js",
     "fetch-gmaps": "node src/fetch-gmaps-ratings.js",
     "fetch-ta": "node src/fetch-ta-ratings.js",
