@@ -2,40 +2,20 @@
 
 /**
  * Generates a filtered CSV report from enriched data.
- * Filters by max price and min Google Maps rating.
+ * All filters are configured in config.js (report section).
  *
  * Usage:
- *   node src/report.js                            # price <= 12500, gmaps >= 4
- *   node src/report.js --price 15000              # price <= 15000, gmaps >= 4
- *   node src/report.js --gmaps 4.5                # price <= 12500, gmaps >= 4.5
- *   node src/report.js --price 15000 --gmaps 4.5  # both custom
+ *   node src/report.js
  *
  * Requires: data/data.json (run "npm run enrich" first)
  * Output:   data/report.csv
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { config } from "../config.js";
 
 const DATA_FILE = "data/data.json";
 const OUT_FILE = "data/report.csv";
-
-// ── Parse CLI args ──────────────────────────────────────────
-
-function parseArgs() {
-  const args = process.argv.slice(2);
-  let maxPrice = 12500;
-  let minGmaps = 4;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--price" && args[i + 1]) {
-      maxPrice = Number(args[++i]);
-    } else if (args[i] === "--gmaps" && args[i + 1]) {
-      minGmaps = Number(args[++i]);
-    }
-  }
-
-  return { maxPrice, minGmaps };
-}
 
 // ── CSV helpers ─────────────────────────────────────────────
 
@@ -45,6 +25,10 @@ const CSV_COLUMNS = [
   "ratingValue", "price", "pricePerPerson",
   "category", "serviceDesc", "tourOperator",
   "googleRating", "googleRatingsTotal", "googleMapsUrl",
+  "taRating", "taReviewCount", "taUrl",
+  "trivagoRating", "trivagoReviewsCount", "trivagoUrl",
+  "trivagoAspectCleanliness", "trivagoAspectLocation", "trivagoAspectComfort",
+  "trivagoAspectValueForMoney", "trivagoAspectService", "trivagoAspectFood", "trivagoAspectRooms",
   "url",
 ];
 
@@ -59,9 +43,15 @@ function escapeCsv(val) {
 
 // ── Main ────────────────────────────────────────────────────
 
-const { maxPrice, minGmaps } = parseArgs();
+const { maxPrice, minGmaps, minTripAdvisor = 0, minTrivago = 0 } = config.report;
 
-console.log(`Filters: price <= ${maxPrice.toLocaleString("pl")} PLN, Google rating >= ${minGmaps}`);
+const filterDesc = [
+  `price <= ${maxPrice.toLocaleString("pl")} PLN`,
+  `Google >= ${minGmaps}`,
+  ...(minTripAdvisor > 0 ? [`TripAdvisor >= ${minTripAdvisor}`] : []),
+  ...(minTrivago > 0 ? [`Trivago >= ${minTrivago}`] : []),
+].join(", ");
+console.log(`Filters: ${filterDesc}`);
 console.log(`Input:   ${DATA_FILE}\n`);
 
 let offers;
@@ -72,12 +62,14 @@ try {
   process.exit(1);
 }
 
-// Filter: price <= max AND googleRating >= min (skip nulls)
+// Filter: price + googleRating (required) + optional TA/Trivago minimums
 const filtered = offers
   .filter((o) =>
     o.googleRating != null &&
     o.googleRating >= minGmaps &&
-    (o.price || Infinity) <= maxPrice
+    (o.price || Infinity) <= maxPrice &&
+    (minTripAdvisor <= 0 || (o.taRating != null && o.taRating >= minTripAdvisor)) &&
+    (minTrivago <= 0 || (o.trivagoRating != null && o.trivagoRating >= minTrivago))
   )
   .sort((a, b) => a.price - b.price);
 

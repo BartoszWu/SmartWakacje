@@ -5,7 +5,10 @@
   "scripts": {
     "start": "node src/server.js",
     "scrape": "node src/scrape.js",
-    "fetch-ratings": "node src/fetch-gmaps-ratings.js",
+    "fetch-gmaps": "node src/fetch-gmaps-ratings.js",
+    "fetch-ta": "node src/fetch-ta-ratings.js",
+    "fetch-trivago": "node src/fetch-trivago-ratings.js",
+    "fetch-all": "npm run fetch-gmaps && npm run fetch-ta && npm run fetch-trivago",
     "enrich": "node src/enrich.js",
     "report": "node src/report.js"
   },

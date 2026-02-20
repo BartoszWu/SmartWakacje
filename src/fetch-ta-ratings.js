@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Fetches Google Maps ratings for hotels from offers JSON.
- * Only processes hotels with ratingValue >= 8.5 and price > 14000.
- * Saves results to data/google-ratings-cache.json (shared with server.js).
+ * Fetches TripAdvisor ratings for hotels from offers JSON.
+ * Only processes hotels with ratingValue >= 8.5 and price <= 14000.
+ * Saves results to data/ta-ratings-cache.json (shared with server.js).
  * Does NOT modify the offers file — use enrich.js for that.
  *
- * Usage:  node src/fetch-gmaps-ratings.js [path/to/offers.json]
+ * Usage:  node src/fetch-ta-ratings.js [path/to/offers.json]
  *         If no path given, auto-detects newest data/offers_*.json
  */
 
@@ -16,17 +16,17 @@ import { config } from "../config.js";
 
 // ── Config (loaded from .env) ───────────────────────────────
 await loadEnv();
-const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-if (!GOOGLE_API_KEY) {
-  console.error("Missing GOOGLE_MAPS_API_KEY in .env");
+const TA_API_KEY = process.env.TRIPADVISOR_API_KEY;
+if (!TA_API_KEY) {
+  console.error("Missing TRIPADVISOR_API_KEY in .env");
   process.exit(1);
 }
-const gmaps = config.fetch.googleMaps ?? {};
-const MIN_RATING = gmaps.minRating ?? config.fetch.minRating;
-const MAX_PRICE = gmaps.maxPrice ?? config.fetch.maxPrice;
-const BATCH_SIZE = gmaps.batchSize ?? config.fetch.batchSize;
-const BATCH_DELAY_MS = gmaps.batchDelayMs ?? config.fetch.batchDelayMs;
-const CACHE_FILE = "data/google-ratings-cache.json";
+const ta = config.fetch.tripAdvisor ?? {};
+const MIN_RATING = ta.minRating ?? config.fetch.minRating;
+const MAX_PRICE = ta.maxPrice ?? config.fetch.maxPrice;
+const BATCH_SIZE = ta.batchSize ?? config.fetch.batchSize;
+const BATCH_DELAY_MS = ta.batchDelayMs ?? config.fetch.batchDelayMs;
+const CACHE_FILE = "data/ta-ratings-cache.json";
 // ────────────────────────────────────────────────────────────
 
 /** Minimal .env loader — no external deps. */
@@ -86,7 +86,6 @@ function get(url) {
   });
 }
 
-/** Load shared cache (same file used by server.js) */
 async function loadCache() {
   try {
     return JSON.parse(await readFile(CACHE_FILE, "utf-8"));
@@ -100,53 +99,70 @@ async function saveCache(cache) {
   await writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
 }
 
+/** Fetch details (rating, num_reviews, web_url) for a single location_id. */
+async function fetchTaDetails(locationId) {
+  const url = `https://api.content.tripadvisor.com/api/v1/location/${locationId}/details?key=${TA_API_KEY}&language=en`;
+  const data = await get(url);
+  return {
+    rating: data.rating ? parseFloat(data.rating) : null,
+    numReviews: data.num_reviews ? parseInt(data.num_reviews) : null,
+    taUrl: data.web_url || null,
+  };
+}
+
 /**
- * Fetch Google Maps rating — checks cache first, then API.
- * Returns top result from Google (or cache). Writes to cache.
+ * Fetch TripAdvisor rating — checks cache first, then API.
+ * Fetches details only for top candidate; rest stored as stubs for UI selection.
+ * Returns top result (or cache). Writes to cache.
  */
-async function fetchGoogleRating(name, city, country, cache) {
+async function fetchTaRating(name, city, country, cache) {
   // Cache hit
   if (cache[name]?.results?.length > 0) {
     const idx = cache[name].selected ?? 0;
     const r = cache[name].results[idx];
-    return { rating: r.rating, totalRatings: r.totalRatings, mapsUrl: r.mapsUrl, fromCache: true };
+    return { rating: r.rating, numReviews: r.numReviews, taUrl: r.taUrl, locationId: r.locationId, fromCache: true };
   }
   if (cache[name] && cache[name].results?.length === 0) {
-    return { rating: 0, totalRatings: 0, mapsUrl: null, fromCache: true };
+    return { rating: null, numReviews: null, taUrl: null, locationId: null, fromCache: true };
   }
 
-  // API call
+  // Search — get up to 5 candidates
   const cleanName = normalizeName(name);
   const countryEn = COUNTRY_EN[country] || country || "";
-  const query = `${cleanName} hotel ${city || ""} ${countryEn}`.trim();
+  const query = `${cleanName} ${city || ""} ${countryEn}`.trim();
 
-  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
-  url.searchParams.set("query", query);
-  url.searchParams.set("key", GOOGLE_API_KEY);
-  url.searchParams.set("type", "lodging");
-  url.searchParams.set("language", "en");
+  const searchUrl = new URL("https://api.content.tripadvisor.com/api/v1/location/search");
+  searchUrl.searchParams.set("key", TA_API_KEY);
+  searchUrl.searchParams.set("searchQuery", query);
+  searchUrl.searchParams.set("category", "hotels");
+  searchUrl.searchParams.set("language", "en");
 
-  const data = await get(url.toString());
+  const searchData = await get(searchUrl.toString());
+  const candidates = searchData.data?.slice(0, 5) || [];
 
-  if (data.status === "OK" && data.results?.length > 0) {
-    const results = data.results.slice(0, 5).map((r) => ({
-      name: r.name || "",
-      rating: r.rating || 0,
-      totalRatings: r.user_ratings_total || 0,
-      address: r.formatted_address || "",
-      placeId: r.place_id || "",
-      mapsUrl: r.place_id
-        ? `https://www.google.com/maps/place/?q=place_id:${r.place_id}`
-        : null,
-    }));
-
-    cache[name] = { results, selected: 0, fetchedAt: new Date().toISOString() };
-    const r = results[0];
-    return { rating: r.rating, totalRatings: r.totalRatings, mapsUrl: r.mapsUrl, fromCache: false };
+  if (candidates.length === 0) {
+    cache[name] = { results: [], selected: null, fetchedAt: new Date().toISOString() };
+    return { rating: null, numReviews: null, taUrl: null, locationId: null, fromCache: false };
   }
 
-  cache[name] = { results: [], selected: null, fetchedAt: new Date().toISOString() };
-  return { rating: 0, totalRatings: 0, mapsUrl: null, fromCache: false };
+  // Fetch details only for top candidate; others saved as stubs (name + address only)
+  await sleep(BATCH_DELAY_MS);
+  const topDetails = await fetchTaDetails(candidates[0].location_id);
+
+  const results = candidates.map((loc, i) => {
+    const base = {
+      locationId: loc.location_id,
+      name: loc.name || "",
+      address: [loc.address_obj?.street1, loc.address_obj?.city, loc.address_obj?.country]
+        .filter(Boolean).join(", "),
+    };
+    if (i === 0) return { ...base, rating: topDetails.rating, numReviews: topDetails.numReviews, taUrl: topDetails.taUrl };
+    return base; // stub — details fetched on-demand via UI
+  });
+
+  cache[name] = { results, selected: 0, fetchedAt: new Date().toISOString() };
+  const r = results[0];
+  return { rating: r.rating, numReviews: r.numReviews, taUrl: r.taUrl, locationId: r.locationId, fromCache: false };
 }
 
 // ── Main ────────────────────────────────────────────────────
@@ -181,14 +197,14 @@ for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
 
   await Promise.all(batch.map(async (h) => {
     try {
-      const g = await fetchGoogleRating(h.name, h.city, h.country, cache);
-      if (!g.fromCache) apiCalls++;
+      const t = await fetchTaRating(h.name, h.city, h.country, cache);
+      if (!t.fromCache) apiCalls++;
 
       completed++;
-      const tag = g.fromCache ? "cache" : "api";
-      if (g.rating > 0) {
+      const tag = t.fromCache ? "cache" : "api";
+      if (t.rating != null) {
         found++;
-        process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> ${g.rating} (${g.totalRatings}) [${tag}]\n`);
+        process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> ${t.rating} (${t.numReviews}) [${tag}]\n`);
       } else {
         notFound.push(h);
         process.stdout.write(`  ${completed}/${hotels.length} ${h.name} -> \u2717 not found [${tag}]\n`);
@@ -207,7 +223,7 @@ for (let b = 0; b < hotels.length; b += BATCH_SIZE) {
 // ── Summary ─────────────────────────────────────────────────
 console.log(`\n--- Done ---`);
 console.log(`Hotels:    ${hotels.length}`);
-console.log(`Found:     ${found} (${((found / hotels.length) * 100).toFixed(1)}%)`);
+console.log(`Found:     ${found} (${hotels.length ? ((found / hotels.length) * 100).toFixed(1) : 0}%)`);
 console.log(`Not found: ${notFound.length}`);
 console.log(`API calls: ${apiCalls} (${hotels.length - apiCalls} from cache)`);
 
