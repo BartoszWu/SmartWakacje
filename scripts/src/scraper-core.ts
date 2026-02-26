@@ -110,7 +110,7 @@ function buildBody(config: ScraperConfig, page: number) {
           maxPrice: null,
           service: [config.service],
           firstminute: null,
-          attribute: ["29"],
+          attribute: config.attributes.map(String),
           promotion: [],
           tourId: null,
           search: null,

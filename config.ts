@@ -53,6 +53,7 @@ export const scraperConfig: ScraperConfig = {
   adults: 2,
   children: 2,
   childAges: ["20190603", "20210125"],
+  attributes: [26, 29],       // Blisko plaży, Dla dzieci
   pageSize: 50,
   delayBetweenPages: 1000,
 };

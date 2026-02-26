@@ -2,6 +2,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { listSnapshots, saveSnapshot, deleteSnapshot } from "../services/cache";
 import { scrapeOffers } from "../../../../scripts/src/scraper-core";
+import { enrichOffers } from "../services/enrich";
 import type { SnapshotMeta } from "@smartwakacje/shared";
 
 const scraperConfigSchema = z.object({
@@ -13,6 +14,7 @@ const scraperConfigSchema = z.object({
   adults: z.number(),
   children: z.number(),
   childAges: z.array(z.string()),
+  attributes: z.array(z.number()).default([]),
   pageSize: z.number().default(50),
   delayBetweenPages: z.number().default(1000),
 });
@@ -28,6 +30,11 @@ export const snapshotsRouter = router({
       const config = input;
 
       const result = await scrapeOffers(config);
+      console.log(`Scraped ${result.parsed.length} offers, enriching ratings...`);
+      await enrichOffers(result.parsed, (phase, done, total) => {
+        console.log(`  [${phase}] ${done}/${total}`);
+      });
+      console.log("Enrichment complete");
 
       const now = new Date();
       const snapshotId = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);

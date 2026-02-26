@@ -2,9 +2,11 @@ import https from "node:https";
 import { normalizeName, COUNTRY_EN } from "@smartwakacje/shared";
 import type { GoogleSearchResult } from "@smartwakacje/shared";
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 function get(url: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const req = https.get(url, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
@@ -14,6 +16,7 @@ function get(url: string): Promise<unknown> {
         resolve(JSON.parse(raw));
       });
     }).on("error", reject);
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => { req.destroy(); reject(new Error("Google API timeout")); });
   });
 }
 

@@ -5,6 +5,7 @@ import {
   AIRPORT_IDS,
   COUNTRY_IDS,
   SERVICE_TYPES,
+  ATTRIBUTE_IDS,
   DEFAULT_SCRAPER_CONFIG,
 } from "@smartwakacje/shared";
 import type { SnapshotMeta } from "@smartwakacje/shared";
@@ -12,6 +13,7 @@ import type { SnapshotMeta } from "@smartwakacje/shared";
 const airportEntries = Object.entries(AIRPORT_IDS);
 const countryEntries = Object.entries(COUNTRY_IDS);
 const serviceEntries = Object.entries(SERVICE_TYPES);
+const attributeEntries = Object.entries(ATTRIBUTE_IDS);
 
 function formatSnapshotDate(iso: string): string {
   const d = new Date(iso);
@@ -49,6 +51,7 @@ export function HomePage() {
   const [adults, setAdults] = React.useState(DEFAULT_SCRAPER_CONFIG.adults);
   const [children, setChildren] = React.useState(DEFAULT_SCRAPER_CONFIG.children);
   const [childAges, setChildAges] = React.useState<string[]>([...DEFAULT_SCRAPER_CONFIG.childAges]);
+  const [attributes, setAttributes] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.attributes]);
 
   // Scraping state
   const [isScraping, setIsScraping] = React.useState(false);
@@ -81,6 +84,7 @@ export function HomePage() {
         adults,
         children,
         childAges: childAges.slice(0, children),
+        attributes,
         pageSize: 50,
         delayBetweenPages: 1000,
       });
@@ -111,8 +115,8 @@ export function HomePage() {
       <div className="min-h-screen bg-bg text-sand flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-3 border-sand/15 border-t-accent rounded-full animate-spin mx-auto mb-6" />
-          <p className="font-display text-2xl text-sand-bright mb-2">Pobieranie ofert...</p>
-          <p className="text-sand-dim text-sm">To moze potrwac ok. 10-30 sekund</p>
+          <p className="font-display text-2xl text-sand-bright mb-2">Pobieranie ofert i ocen...</p>
+          <p className="text-sand-dim text-sm">Scraping + enrichment z Google, Trivago, TripAdvisor. Moze potrwac 1-5 min.</p>
         </div>
       </div>
     );
@@ -231,6 +235,29 @@ export function HomePage() {
                   ))}
                 </select>
               </div>
+
+              {/* Amenities */}
+              <fieldset className="mb-5">
+                <legend className="text-[11px] uppercase tracking-widest text-sand-dim font-semibold mb-2">
+                  Udogodnienia
+                </legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {attributeEntries.map(([name, id]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setAttributes(toggleInArray(attributes, id))}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                        attributes.includes(id)
+                          ? "bg-accent/20 text-accent border border-accent/40"
+                          : "bg-bg-raised text-sand-dim border border-sand/8 hover:border-sand/20"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
 
               {/* Rooms */}
               <div className="grid grid-cols-2 gap-4 mb-5">

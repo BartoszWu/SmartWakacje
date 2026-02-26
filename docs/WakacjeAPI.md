@@ -213,7 +213,16 @@ Photo URLs are relative — prefix with `https://www.wakacje.pl`.
 
 | ID | Name |
 |----|------|
+| 6 | Internet |
+| 13 | Nurkowanie |
+| 16 | Golf |
+| 21 | Aquapark |
+| 24 | Basen kryty |
+| 25 | Basen odkryty |
+| 26 | Blisko plaży |
 | 29 | Dla dzieci |
+| 36 | Bez paszportu |
+| 46 | Spa & Wellness |
 
 ### Sort (`sort`)
 

@@ -36,6 +36,19 @@ export const SERVICE_TYPES: Record<string, number> = {
   "Bez wyżywienia": 5,
 };
 
+export const ATTRIBUTE_IDS: Record<string, number> = {
+  "Blisko plaży": 26,
+  "Dla dzieci": 29,
+  "Aquapark": 21,
+  "Basen odkryty": 25,
+  "Basen kryty": 24,
+  "Spa & Wellness": 46,
+  "Bez paszportu": 36,
+  "Nurkowanie": 13,
+  "Internet": 6,
+  "Golf": 16,
+};
+
 export const DEFAULT_SCRAPER_CONFIG = {
   departureDateFrom: "2026-06-19",
   departureDateTo: "2026-06-30",
@@ -45,6 +58,7 @@ export const DEFAULT_SCRAPER_CONFIG = {
   adults: 2,
   children: 2,
   childAges: ["20190603", "20210125"],
+  attributes: [26, 29],
   pageSize: 50,
   delayBetweenPages: 1000,
 } as const;

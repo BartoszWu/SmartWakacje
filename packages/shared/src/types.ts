@@ -143,6 +143,7 @@ export interface ScraperConfig {
   adults: number;
   children: number;
   childAges: string[];
+  attributes: number[];
   pageSize: number;
   delayBetweenPages: number;
 }

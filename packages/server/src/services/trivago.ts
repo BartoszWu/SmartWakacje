@@ -3,6 +3,16 @@ import { normalizeName } from "@smartwakacje/shared";
 import type { TrivagoSearchResult, TrivagoAspects } from "@smartwakacje/shared";
 
 const SEARCH_HASH = "ea6de51e563394c4768a3a0ef0f67e7307c910ed29e4824896f36c95d5d159fd";
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 function trivagoPost(path: string, body: unknown): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -12,6 +22,7 @@ function trivagoPost(path: string, body: unknown): Promise<unknown> {
         hostname: "www.trivago.pl",
         path,
         method: "POST",
+        timeout: REQUEST_TIMEOUT_MS,
         headers: {
           "Content-Type": "application/json",
           "Content-Length": payload.length,
@@ -41,6 +52,7 @@ function trivagoPost(path: string, body: unknown): Promise<unknown> {
         });
       }
     );
+    req.on("timeout", () => { req.destroy(); reject(new Error("Trivago POST timeout")); });
     req.on("error", reject);
     req.write(payload);
     req.end();
@@ -50,11 +62,12 @@ function trivagoPost(path: string, body: unknown): Promise<unknown> {
 function trivagoGet(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
     function doGet(p: string) {
-      https
+      const req = https
         .get(
           {
             hostname: "www.trivago.pl",
             path: p,
+            timeout: REQUEST_TIMEOUT_MS,
             headers: {
               "User-Agent":
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
@@ -81,6 +94,7 @@ function trivagoGet(path: string): Promise<string> {
           }
         )
         .on("error", reject);
+      req.on("timeout", () => { req.destroy(); reject(new Error("Trivago GET timeout")); });
     }
     doGet(path);
   });
@@ -90,7 +104,8 @@ async function searchTrivagoConcept(
   name: string
 ): Promise<{ nsid: number; name: string; locationLabel: string } | null> {
   const clean = normalizeName(name);
-  const data = (await trivagoPost("/graphql?getSearchSuggestions", {
+  console.log(`    [Trivago] search concept: "${clean}"`);
+  const data = (await withTimeout(trivagoPost("/graphql?getSearchSuggestions", {
     variables: {
       input: {
         query: clean,
@@ -103,7 +118,7 @@ async function searchTrivagoConcept(
     extensions: {
       persistedQuery: { version: 1, sha256Hash: SEARCH_HASH },
     },
-  })) as {
+  }), REQUEST_TIMEOUT_MS, `Trivago search "${clean}"`)) as {
     data?: {
       getSearchSuggestions?: {
         unifiedSearchSuggestions?: Array<{
@@ -121,6 +136,7 @@ async function searchTrivagoConcept(
   for (const s of suggestions) {
     const c = s.concept;
     if (c?.nsid?.ns === 100 && c.nsid.id) {
+      console.log(`    [Trivago] found nsid=${c.nsid.id} "${c.translatedName?.value}" (${c.locationLabel})`);
       return {
         nsid: c.nsid.id,
         name: c.translatedName?.value ?? "",
@@ -128,6 +144,7 @@ async function searchTrivagoConcept(
       };
     }
   }
+  console.log(`    [Trivago] no concept found for "${name}"`);
   return null;
 }
 
@@ -147,7 +164,12 @@ async function fetchTrivagoRatingsByNsid(nsid: number): Promise<{
   trivagoUrl: string;
   aspects: TrivagoAspects | null;
 }> {
-  const html = await trivagoGet(`/pl/oar/hotel?search=100-${nsid}`);
+  console.log(`    [Trivago] fetching ratings for nsid=${nsid}...`);
+  const html = await withTimeout(
+    trivagoGet(`/pl/oar/hotel?search=100-${nsid}`),
+    REQUEST_TIMEOUT_MS,
+    `Trivago ratings nsid=${nsid}`
+  );
 
   const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
   if (!m) throw new Error("No __NEXT_DATA__ found on page");
@@ -194,12 +216,14 @@ async function fetchTrivagoRatingsByNsid(nsid: number): Promise<{
     ? `https://www.trivago.pl${urlSlug}`
     : `https://www.trivago.pl/pl/oar/hotel?search=100-${nsid}`;
 
-  return {
+  const result = {
     rating: reviewRating?.formattedRating ? parseFloat(reviewRating.formattedRating) : null,
     reviewsCount: reviewRating?.reviewsCount ?? null,
     trivagoUrl,
     aspects: Object.keys(aspects).length > 0 ? aspects : null,
   };
+  console.log(`    [Trivago] nsid=${nsid} → rating=${result.rating}, reviews=${result.reviewsCount}`);
+  return result;
 }
 
 export async function searchTrivago(name: string): Promise<TrivagoSearchResult[]> {
