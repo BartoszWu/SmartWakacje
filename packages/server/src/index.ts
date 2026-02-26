@@ -84,7 +84,15 @@ serve({
             : null;
         const question =
           typeof body?.question === "string" ? body.question : "";
-        const prompt = await buildExternalPrompt(snapshotId, question);
+        const offerIds = Array.isArray(body?.offerIds) ? body.offerIds : undefined;
+        const qualityMode =
+          body?.qualityMode === "legacy" ? "legacy" : "precomputed";
+        const prompt = await buildExternalPrompt(
+          snapshotId,
+          question,
+          offerIds,
+          qualityMode
+        );
 
         return jsonResponse({ prompt });
       } catch (error) {

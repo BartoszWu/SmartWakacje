@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { reportConfig } from "../../config";
-import type { Offer } from "@smartwakacje/shared";
+import { withComputedScores, type Offer } from "@smartwakacje/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "data");
@@ -42,6 +42,7 @@ const CSV_COLUMNS: string[] = [
   "name", "country", "city",
   "duration", "departureDate", "returnDate",
   "ratingValue", "price", "pricePerPerson",
+  "qualityScore", "valueScore",
   "category", "serviceDesc", "tourOperator",
   "googleRating", "googleRatingsTotal", "googleMapsUrl",
   "taRating", "taReviewCount", "taUrl",
@@ -84,8 +85,9 @@ async function main() {
   console.log(`Input:   ${dataFile}\n`);
 
   const offers: Offer[] = JSON.parse(await readFile(dataFile, "utf-8"));
+  const scoredOffers = offers.map(withComputedScores);
 
-  const filtered = offers
+  const filtered = scoredOffers
     .filter((o) =>
       o.googleRating != null &&
       o.googleRating >= minGmaps &&

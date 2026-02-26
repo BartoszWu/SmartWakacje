@@ -62,8 +62,12 @@ export function Controls() {
         <select
           value={sort.primary}
           onChange={(e) => setSort({ primary: e.target.value as typeof sort.primary })}
+          title="Sortowanie główne"
+          aria-label="Sortowanie główne"
           className="py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
         >
+          <option value="qualityScore">Jakość (score)</option>
+          <option value="valueScore">Value (jakość/cena)</option>
           <option value="ratingValue">Wakacje.pl</option>
           <option value="googleRating">GMaps</option>
           <option value="trivagoRating">Trivago</option>
@@ -87,8 +91,12 @@ export function Controls() {
         <select
           value={sort.secondary}
           onChange={(e) => setSort({ secondary: e.target.value as typeof sort.secondary })}
+          title="Sortowanie drugorzędne"
+          aria-label="Sortowanie drugorzędne"
           className="py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
         >
+          <option value="qualityScore">Jakość (score)</option>
+          <option value="valueScore">Value (jakość/cena)</option>
           <option value="pricePerPerson">Cena / os</option>
           <option value="ratingValue">Wakacje.pl</option>
           <option value="googleRating">GMaps</option>

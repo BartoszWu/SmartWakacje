@@ -28,6 +28,23 @@ function MetaChip({ icon, value, label }: { icon: React.ReactNode; value: number
   );
 }
 
+function ScoreChip({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-semibold ${accent}`}>
+      <span className="opacity-70">{label}</span>
+      <span>{value}</span>
+    </span>
+  );
+}
+
 const ICONS = {
   thumb: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0">
@@ -56,6 +73,8 @@ const ICONS = {
 
 export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
   const photoUrl = offer.photo || `https://placehold.co/570x428/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 12))}`;
+  const quality = offer.qualityScore;
+  const value = offer.valueScore;
 
   return (
     <article
@@ -103,6 +122,16 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
 
       <div className="p-3 flex flex-col gap-2.5">
         <div className="flex flex-wrap gap-1.5">
+          <ScoreChip
+            label="Q"
+            value={quality != null ? quality.toFixed(2) : "—"}
+            accent="border-accent/25 bg-accent/10 text-accent"
+          />
+          <ScoreChip
+            label="V"
+            value={value != null ? value.toFixed(3) : "—"}
+            accent="border-blue/35 bg-blue/10 text-blue"
+          />
           <MetaChip icon={ICONS.thumb} value={offer.ratingRecommends} label="poleceń" />
           <MetaChip icon={ICONS.calendar} value={offer.ratingReservationCount} label="rezerwacji" />
           <MetaChip icon={ICONS.briefcase} value={offer.employeeRatingCount} label="ocen prac." />

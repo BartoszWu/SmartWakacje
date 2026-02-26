@@ -35,6 +35,8 @@ export interface Offer {
   trivagoUrl?: string;
   trivagoNsid?: number;
   trivagoAspects?: TrivagoAspects;
+  qualityScore?: number;
+  valueScore?: number;
 }
 
 export interface TrivagoAspects {
@@ -98,6 +100,8 @@ export type SortField =
   | "googleRating"
   | "trivagoRating"
   | "taRating"
+  | "qualityScore"
+  | "valueScore"
   | "pricePerPerson"
   | "price"
   | "category"
@@ -105,6 +109,8 @@ export type SortField =
   | "ratingRecommends"
   | "ratingReservationCount"
   | "employeeRatingCount";
+
+export type QualityMode = "precomputed" | "legacy";
 
 export interface SortConfig {
   primary: SortField;

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Offer, SortConfig, FilterState, SnapshotMeta } from "@smartwakacje/shared";
+import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta } from "@smartwakacje/shared";
 
 type View = "home" | "offers";
 
@@ -103,8 +103,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // Data actions
   setOffers: (offers) => {
-    const countries = [...new Set(offers.map((o) => o.country))].sort();
-    set({ offers, countries });
+    const enriched = offers.map(withComputedScores);
+    const countries = [...new Set(enriched.map((o) => o.country))].sort();
+    set({ offers: enriched, countries });
     get().applyFilters();
   },
 
@@ -208,7 +209,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateOffer: (name, updates) => {
     set((state) => ({
-      offers: state.offers.map((o) => (o.name === name ? { ...o, ...updates } : o)),
+      offers: state.offers.map((o) =>
+        o.name === name ? withComputedScores({ ...o, ...updates }) : o
+      ),
     }));
     get().applyFilters();
   },

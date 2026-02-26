@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useStore } from "../store/useStore";
+import type { QualityMode } from "@smartwakacje/shared";
 
 const SUGGESTED_PROMPTS = [
   { label: "Top 5 hoteli jakościowo", icon: "🏆" },
@@ -18,6 +19,22 @@ const MISSING_KEY_HINTS = [
   "ai_loadapikeyerror",
   "status code 503",
 ];
+
+const QUALITY_MODE_COPY: Record<
+  QualityMode,
+  { label: string; description: string; title: string }
+> = {
+  precomputed: {
+    label: "Ocena systemowa",
+    title: "Ranking oparty o preliczony score quality/value",
+    description: "Ocena systemowa = mniej tokenów i stabilniejszy ranking ofert.",
+  },
+  legacy: {
+    label: "Ocena modelu AI",
+    title: "Ranking wyliczany dynamicznie przez model AI",
+    description: "Ocena modelu AI = większa swoboda odpowiedzi kosztem stabilności.",
+  },
+};
 
 function isMissingKeyError(error: Error | undefined): boolean {
   if (!error) return false;
@@ -161,19 +178,29 @@ export function ChatPanel() {
   const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [isPreparingPrompt, setIsPreparingPrompt] = useState(false);
   const [copyToast, setCopyToast] = useState<null | "success" | "error">(null);
+  const [useFiltered, setUseFiltered] = useState(false);
+  const [qualityMode, setQualityMode] = useState<QualityMode>("precomputed");
   const snapshotId = useStore((s) => s.activeSnapshotId);
-  const offerCount = useStore((s) => s.offers.length);
+  const offers = useStore((s) => s.offers);
+  const filteredOffers = useStore((s) => s.filteredOffers);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const copyToastTimeoutRef = useRef<number | null>(null);
+
+  const hasActiveFilters = filteredOffers.length !== offers.length;
+  const effectiveUseFiltered = useFiltered && hasActiveFilters;
+  const offerIds = effectiveUseFiltered
+    ? filteredOffers.map((o) => o.id)
+    : undefined;
+  const contextCount = effectiveUseFiltered ? filteredOffers.length : offers.length;
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: { snapshotId },
+        body: { snapshotId, offerIds, qualityMode },
       }),
-    [snapshotId]
+    [snapshotId, qualityMode, JSON.stringify(offerIds)]
   );
 
   const { messages, sendMessage, status, error } = useChat({ transport });
@@ -236,6 +263,8 @@ export function ChatPanel() {
         body: JSON.stringify({
           snapshotId,
           question: question.trim(),
+          offerIds,
+          qualityMode,
         }),
       });
 
@@ -353,9 +382,80 @@ export function ChatPanel() {
             <div>
               <h2 className="font-display text-lg text-sand-bright leading-none">Asystent wakacyjny</h2>
               <p className="text-[11px] text-sand-dim mt-0.5 font-medium">
-                Analiza {offerCount} ofert
+                Analiza{" "}
+                <span className="font-mono text-sand-bright">{contextCount}</span>
+                {effectiveUseFiltered && (
+                  <span className="text-sand-dim/60"> / {offers.length}</span>
+                )}
+                {" "}ofert
               </p>
             </div>
+          </div>
+
+          {/* Context toggle */}
+          <div className="flex items-center gap-1.5 mt-3">
+            <button
+              type="button"
+              onClick={() => setUseFiltered(false)}
+              className={`px-3 py-1.5 rounded-sm text-[11px] font-semibold tracking-wide transition-all duration-200 border ${
+                !effectiveUseFiltered
+                  ? "bg-accent/15 border-accent/40 text-accent"
+                  : "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
+              }`}
+            >
+              Wszystkie
+              <span className="ml-1 font-mono opacity-70">{offers.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseFiltered(true)}
+              disabled={!hasActiveFilters}
+              className={`px-3 py-1.5 rounded-sm text-[11px] font-semibold tracking-wide transition-all duration-200 border ${
+                effectiveUseFiltered
+                  ? "bg-accent/15 border-accent/40 text-accent"
+                  : hasActiveFilters
+                    ? "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
+                    : "bg-transparent border-sand/5 text-sand-dim/30 cursor-not-allowed"
+              }`}
+            >
+              Filtrowane
+              <span className="ml-1 font-mono opacity-70">{filteredOffers.length}</span>
+            </button>
+          </div>
+
+          <div className="mt-2.5">
+            <p className="text-[10px] uppercase tracking-widest text-sand-dim/55 font-semibold mb-1.5 px-0.5">
+              Tryb oceny
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setQualityMode("precomputed")}
+                title={QUALITY_MODE_COPY.precomputed.title}
+                className={`px-2.5 py-1.5 rounded-sm text-[11px] font-semibold border transition-all ${
+                  qualityMode === "precomputed"
+                    ? "bg-accent/15 border-accent/40 text-accent"
+                    : "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
+                }`}
+              >
+                {QUALITY_MODE_COPY.precomputed.label}
+              </button>
+              <button
+                type="button"
+                onClick={() => setQualityMode("legacy")}
+                title={QUALITY_MODE_COPY.legacy.title}
+                className={`px-2.5 py-1.5 rounded-sm text-[11px] font-semibold border transition-all ${
+                  qualityMode === "legacy"
+                    ? "bg-accent/15 border-accent/40 text-accent"
+                    : "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
+                }`}
+              >
+                {QUALITY_MODE_COPY.legacy.label}
+              </button>
+            </div>
+            <p className="mt-1.5 text-[10px] text-sand-dim/70 px-0.5">
+              {QUALITY_MODE_COPY[qualityMode].description}
+            </p>
           </div>
         </div>
 
