@@ -165,6 +165,14 @@ export interface ReportConfig {
   minTrivago: number;
 }
 
+export interface SnapshotMeta {
+  id: string;
+  createdAt: string;
+  offerCount: number;
+  filters: ScraperConfig;
+  countries: string[];
+}
+
 export interface RawWakacjeOffer {
   id: number;
   name: string;

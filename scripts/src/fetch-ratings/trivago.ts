@@ -10,7 +10,10 @@ import type { Offer, TrivagoCacheEntry, TrivagoSearchResult, TrivagoAspects } fr
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "data");
-const CACHE_FILE = join(DATA_DIR, "trivago-ratings-cache.json");
+const CACHE_DIR = join(DATA_DIR, "cache");
+const SNAPSHOTS_DIR = join(DATA_DIR, "snapshots");
+const CACHE_FILE = join(CACHE_DIR, "trivago-ratings-cache.json");
+const LEGACY_CACHE_FILE = join(DATA_DIR, "trivago-ratings-cache.json");
 
 const trv = fetchConfig.trivago ?? {};
 const MIN_RATING = trv.minRating ?? fetchConfig.minRating;
@@ -23,12 +26,23 @@ const SEARCH_HASH = "ea6de51e563394c4768a3a0ef0f67e7307c910ed29e4824896f36c95d5d
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function findNewestOffers(): Promise<string> {
+  // Try snapshots first
+  try {
+    const entries = await readdir(SNAPSHOTS_DIR, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort().reverse();
+    if (dirs.length > 0) {
+      const file = join(SNAPSHOTS_DIR, dirs[0], "offers.json");
+      await readFile(file, "utf-8");
+      return file;
+    }
+  } catch { /* Continue */ }
+
   const files = await readdir(DATA_DIR);
   const offerFiles = files
     .filter((f) => f.startsWith("offers_") && f.endsWith(".json"))
     .sort()
     .reverse();
-  if (!offerFiles.length) throw new Error("No offers_*.json found in data/");
+  if (!offerFiles.length) throw new Error("No offers found in data/ or data/snapshots/");
   return join(DATA_DIR, offerFiles[0]);
 }
 
@@ -36,12 +50,16 @@ async function loadCache(): Promise<Record<string, TrivagoCacheEntry>> {
   try {
     return JSON.parse(await readFile(CACHE_FILE, "utf-8"));
   } catch {
-    return {};
+    try {
+      return JSON.parse(await readFile(LEGACY_CACHE_FILE, "utf-8"));
+    } catch {
+      return {};
+    }
   }
 }
 
 async function saveCache(cache: Record<string, TrivagoCacheEntry>): Promise<void> {
-  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(CACHE_DIR, { recursive: true });
   await writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
 }
 

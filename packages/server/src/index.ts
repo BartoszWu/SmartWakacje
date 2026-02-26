@@ -3,10 +3,11 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { existsSync, statSync } from "node:fs";
 import { join, extname } from "node:path";
 import { router } from "./trpc";
-import { offersRouter } from "./routers";
+import { offersRouter, snapshotsRouter } from "./routers";
 
 export const appRouter = router({
   offers: offersRouter,
+  snapshots: snapshotsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { reportConfig } from "../../config";
@@ -8,8 +8,35 @@ import type { Offer } from "@smartwakacje/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "data");
-const DATA_FILE = join(DATA_DIR, "data.json");
-const OUT_FILE = join(DATA_DIR, "report.csv");
+const SNAPSHOTS_DIR = join(DATA_DIR, "snapshots");
+
+async function findDataFile(): Promise<string> {
+  // First try latest snapshot
+  try {
+    const entries = await readdir(SNAPSHOTS_DIR, { withFileTypes: true });
+    const dirs = entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()
+      .reverse();
+    if (dirs.length > 0) {
+      const file = join(SNAPSHOTS_DIR, dirs[0], "offers.json");
+      await readFile(file, "utf-8");
+      return file;
+    }
+  } catch {
+    // Continue
+  }
+
+  // Legacy fallback
+  const legacyFile = join(DATA_DIR, "data.json");
+  try {
+    await readFile(legacyFile, "utf-8");
+    return legacyFile;
+  } catch {
+    throw new Error(`No data found. Run "bun run scrape" or "bun run enrich" first.`);
+  }
+}
 
 const CSV_COLUMNS: string[] = [
   "name", "country", "city",
@@ -43,15 +70,11 @@ async function main() {
     ...(minTrivago > 0 ? [`Trivago >= ${minTrivago}`] : []),
   ].join(", ");
   console.log(`Filters: ${filterDesc}`);
-  console.log(`Input:   ${DATA_FILE}\n`);
 
-  let offers: Offer[];
-  try {
-    offers = JSON.parse(await readFile(DATA_FILE, "utf-8"));
-  } catch {
-    console.error(`File not found: ${DATA_FILE}\nRun "bun run enrich" first.`);
-    process.exit(1);
-  }
+  const dataFile = process.argv[2] || (await findDataFile());
+  console.log(`Input:   ${dataFile}\n`);
+
+  const offers: Offer[] = JSON.parse(await readFile(dataFile, "utf-8"));
 
   const filtered = offers
     .filter((o) =>
@@ -63,12 +86,14 @@ async function main() {
     )
     .sort((a, b) => a.price - b.price);
 
-  await mkdir(DATA_DIR, { recursive: true });
+  const outDir = dirname(dataFile);
+  const outFile = join(outDir, "report.csv");
+  await mkdir(outDir, { recursive: true });
   const csvRows = [
     CSV_COLUMNS.join(","),
     ...filtered.map((o) => CSV_COLUMNS.map((col) => escapeCsv((o as Record<string, unknown>)[col])).join(",")),
   ];
-  await writeFile(OUT_FILE, "\uFEFF" + csvRows.join("\n"), "utf8");
+  await writeFile(outFile, "\uFEFF" + csvRows.join("\n"), "utf8");
 
   const uniqueHotels = new Set(filtered.map((o) => o.name)).size;
   const prices = filtered.map((o) => o.price).filter(Boolean);
@@ -76,9 +101,9 @@ async function main() {
   console.log(`--- Done ---`);
   console.log(`Matched:  ${filtered.length} offers (${uniqueHotels} hotels)`);
   if (prices.length) {
-    console.log(`Price:    ${Math.min(...prices).toLocaleString("pl")} – ${Math.max(...prices).toLocaleString("pl")} PLN`);
+    console.log(`Price:    ${Math.min(...prices).toLocaleString("pl")} - ${Math.max(...prices).toLocaleString("pl")} PLN`);
   }
-  console.log(`Saved:    ${OUT_FILE}`);
+  console.log(`Saved:    ${outFile}`);
 }
 
 main().catch(console.error);

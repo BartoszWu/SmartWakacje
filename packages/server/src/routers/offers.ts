@@ -15,10 +15,21 @@ import { searchTA, fetchTADetails } from "../services/tripadvisor";
 import { searchTrivago } from "../services/trivago";
 import type { Offer } from "@smartwakacje/shared";
 
+// Track which snapshot is currently being viewed so rating updates go to the right place
+let activeSnapshotId: string | null = null;
+
+export function setActiveSnapshotId(id: string | null) {
+  activeSnapshotId = id;
+}
+
 export const offersRouter = router({
-  list: publicProcedure.query(async () => {
-    return loadOffers();
-  }),
+  list: publicProcedure
+    .input(z.object({ snapshotId: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const sid = input?.snapshotId ?? null;
+      activeSnapshotId = sid;
+      return loadOffers(sid);
+    }),
 
   fetchGoogleRating: publicProcedure
     .input(
@@ -198,7 +209,7 @@ async function updateOfferGoogleRating(
   hotelName: string,
   result: { rating: number; totalRatings: number; mapsUrl: string }
 ) {
-  const offers = await loadOffers();
+  const offers = await loadOffers(activeSnapshotId);
   let changed = false;
 
   for (const o of offers) {
@@ -210,14 +221,14 @@ async function updateOfferGoogleRating(
     }
   }
 
-  if (changed) await saveOffers(offers);
+  if (changed) await saveOffers(offers, activeSnapshotId);
 }
 
 async function updateOfferTARating(
   hotelName: string,
   result: { rating: number | null; numReviews: number | null; taUrl: string | null; locationId: string }
 ) {
-  const offers = await loadOffers();
+  const offers = await loadOffers(activeSnapshotId);
   let changed = false;
 
   for (const o of offers) {
@@ -230,7 +241,7 @@ async function updateOfferTARating(
     }
   }
 
-  if (changed) await saveOffers(offers);
+  if (changed) await saveOffers(offers, activeSnapshotId);
 }
 
 async function updateOfferTrivagoRating(
@@ -243,7 +254,7 @@ async function updateOfferTrivagoRating(
     aspects?: { [key: string]: number } | null;
   }
 ) {
-  const offers = await loadOffers();
+  const offers = await loadOffers(activeSnapshotId);
   let changed = false;
 
   for (const o of offers) {
@@ -259,5 +270,5 @@ async function updateOfferTrivagoRating(
     }
   }
 
-  if (changed) await saveOffers(offers);
+  if (changed) await saveOffers(offers, activeSnapshotId);
 }

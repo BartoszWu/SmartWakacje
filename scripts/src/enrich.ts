@@ -7,18 +7,59 @@ import type { Offer, GoogleCacheEntry, TACacheEntry, TrivagoCacheEntry } from "@
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "data");
+const SNAPSHOTS_DIR = join(DATA_DIR, "snapshots");
+const CACHE_DIR = join(DATA_DIR, "cache");
 
-const GOOGLE_CACHE_FILE = join(DATA_DIR, "google-ratings-cache.json");
-const TA_CACHE_FILE = join(DATA_DIR, "ta-ratings-cache.json");
-const TRIVAGO_CACHE_FILE = join(DATA_DIR, "trivago-ratings-cache.json");
+// Legacy cache locations (fallback)
+const LEGACY_GOOGLE_CACHE = join(DATA_DIR, "google-ratings-cache.json");
+const LEGACY_TA_CACHE = join(DATA_DIR, "ta-ratings-cache.json");
+const LEGACY_TRIVAGO_CACHE = join(DATA_DIR, "trivago-ratings-cache.json");
+
+async function findCacheFile(name: string): Promise<string> {
+  const newPath = join(CACHE_DIR, `${name}.json`);
+  const legacyPath = join(DATA_DIR, `${name}.json`);
+  try {
+    await readFile(newPath, "utf-8");
+    return newPath;
+  } catch {
+    return legacyPath;
+  }
+}
+
+async function findLatestSnapshot(): Promise<string | null> {
+  try {
+    const entries = await readdir(SNAPSHOTS_DIR, { withFileTypes: true });
+    const dirs = entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()
+      .reverse();
+    if (dirs.length > 0) return join(SNAPSHOTS_DIR, dirs[0], "offers.json");
+  } catch {
+    // No snapshots dir
+  }
+  return null;
+}
 
 async function findNewestOffers(): Promise<string> {
+  // First try snapshots
+  const snapshotFile = await findLatestSnapshot();
+  if (snapshotFile) {
+    try {
+      await readFile(snapshotFile, "utf-8");
+      return snapshotFile;
+    } catch {
+      // Continue
+    }
+  }
+
+  // Legacy fallback
   const files = await readdir(DATA_DIR);
   const offerFiles = files
     .filter((f) => f.startsWith("offers_") && f.endsWith(".json"))
     .sort()
     .reverse();
-  if (!offerFiles.length) throw new Error("No offers_*.json found in data/");
+  if (!offerFiles.length) throw new Error("No offers found in data/ or data/snapshots/");
   return join(DATA_DIR, offerFiles[0]);
 }
 
@@ -28,11 +69,6 @@ async function loadCache<T>(file: string): Promise<Record<string, T>> {
   } catch {
     return {};
   }
-}
-
-function extractDates(filePath: string): { from: string; to: string } {
-  const m = filePath.match(/offers_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
-  return m ? { from: m[1], to: m[2] } : { from: "unknown", to: "unknown" };
 }
 
 function escapeCsv(val: unknown): string {
@@ -62,17 +98,20 @@ const CSV_COLUMNS: string[] = [
 
 async function main() {
   const filePath = process.argv[2] || (await findNewestOffers());
-  const { from, to } = extractDates(filePath);
+
+  const googleCacheFile = await findCacheFile("google-ratings-cache");
+  const taCacheFile = await findCacheFile("ta-ratings-cache");
+  const trivagoCacheFile = await findCacheFile("trivago-ratings-cache");
 
   console.log(`Offers:        ${filePath}`);
-  console.log(`Cache:         ${GOOGLE_CACHE_FILE}`);
-  console.log(`TA Cache:      ${TA_CACHE_FILE}`);
-  console.log(`Trivago Cache: ${TRIVAGO_CACHE_FILE}`);
+  console.log(`Cache:         ${googleCacheFile}`);
+  console.log(`TA Cache:      ${taCacheFile}`);
+  console.log(`Trivago Cache: ${trivagoCacheFile}`);
 
   const offers: Offer[] = JSON.parse(await readFile(filePath, "utf-8"));
-  const googleCache = await loadCache<GoogleCacheEntry>(GOOGLE_CACHE_FILE);
-  const taCache = await loadCache<TACacheEntry>(TA_CACHE_FILE);
-  const trivagoCache = await loadCache<TrivagoCacheEntry>(TRIVAGO_CACHE_FILE);
+  const googleCache = await loadCache<GoogleCacheEntry>(googleCacheFile);
+  const taCache = await loadCache<TACacheEntry>(taCacheFile);
+  const trivagoCache = await loadCache<TrivagoCacheEntry>(trivagoCacheFile);
 
   const enrichedGoogle = new Set<string>();
   const enrichedTa = new Set<string>();
@@ -147,16 +186,16 @@ async function main() {
     }
   }
 
-  await mkdir(DATA_DIR, { recursive: true });
+  // Save enriched offers back to the same file (in-place update)
+  await writeFile(filePath, JSON.stringify(offers, null, 2));
 
-  const jsonFile = join(DATA_DIR, "data.json");
-  await writeFile(jsonFile, JSON.stringify(offers, null, 2));
-
+  // Also save CSV next to the offers file
+  const dir = dirname(filePath);
   const csvRows = [
     CSV_COLUMNS.join(","),
     ...offers.map((o) => CSV_COLUMNS.map((col) => escapeCsv((o as Record<string, unknown>)[col])).join(",")),
   ];
-  const csvFile = join(DATA_DIR, "data.csv");
+  const csvFile = join(dir, "offers.csv");
   await writeFile(csvFile, "\uFEFF" + csvRows.join("\n"), "utf8");
 
   const uniqueHotels = new Set(offers.map((o) => o.name)).size;
@@ -169,7 +208,7 @@ async function main() {
   console.log(`Trivago:   ${enrichedTrivago.size} hotels enriched`);
   console.log(`Missing:   ${missingHotels.size} hotels without any rating data`);
   console.log(`\nSaved:`);
-  console.log(`  json -> ${jsonFile}`);
+  console.log(`  json -> ${filePath}`);
   console.log(`  csv  -> ${csvFile}`);
 }
 

@@ -1,7 +1,15 @@
 import { create } from "zustand";
-import type { Offer, SortConfig, FilterState } from "@smartwakacje/shared";
+import type { Offer, SortConfig, FilterState, SnapshotMeta } from "@smartwakacje/shared";
+
+type View = "home" | "offers";
 
 interface StoreState {
+  // Navigation
+  view: View;
+  activeSnapshotId: string | null;
+  activeSnapshotMeta: SnapshotMeta | null;
+
+  // Offers data
   offers: Offer[];
   filteredOffers: Offer[];
   filters: FilterState;
@@ -11,6 +19,12 @@ interface StoreState {
   countries: string[];
   trivagoNotFound: Set<string>;
 
+  // Navigation actions
+  setView: (view: View) => void;
+  openSnapshot: (snapshotId: string, meta?: SnapshotMeta | null) => void;
+  goHome: () => void;
+
+  // Data actions
   setOffers: (offers: Offer[]) => void;
   setFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   resetFilters: () => void;
@@ -45,6 +59,12 @@ const initialSort: SortConfig = {
 };
 
 export const useStore = create<StoreState>((set, get) => ({
+  // Navigation
+  view: "home",
+  activeSnapshotId: null,
+  activeSnapshotMeta: null,
+
+  // Offers data
   offers: [],
   filteredOffers: [],
   filters: initialFilters,
@@ -54,8 +74,35 @@ export const useStore = create<StoreState>((set, get) => ({
   countries: [],
   trivagoNotFound: new Set(),
 
+  // Navigation actions
+  setView: (view) => set({ view }),
+
+  openSnapshot: (snapshotId, meta) => {
+    set({
+      view: "offers",
+      activeSnapshotId: snapshotId,
+      activeSnapshotMeta: meta ?? null,
+      offers: [],
+      filteredOffers: [],
+      filters: initialFilters,
+      page: 1,
+    });
+  },
+
+  goHome: () => {
+    set({
+      view: "home",
+      activeSnapshotId: null,
+      activeSnapshotMeta: null,
+      offers: [],
+      filteredOffers: [],
+      filters: initialFilters,
+      page: 1,
+    });
+  },
+
+  // Data actions
   setOffers: (offers) => {
-    console.log("setOffers called with", offers.length);
     const countries = [...new Set(offers.map((o) => o.country))].sort();
     set({ offers, countries });
     get().applyFilters();
@@ -157,7 +204,6 @@ export const useStore = create<StoreState>((set, get) => ({
     });
 
     set({ filteredOffers: list });
-    console.log("applyFilters: set filteredOffers to", list.length);
   },
 
   updateOffer: (name, updates) => {
