@@ -277,3 +277,113 @@ The `searchObj` is embedded in the SSR HTML inside a `<script>` tag alongside Mo
 ## Rate limiting
 
 Not observed during testing, but be respectful — add 1s+ delay between requests.
+
+## Detail Page API — Room Variants & Flights
+
+The offer detail page (`/oferty/{country}/{region}/{city}/{slug}.html`) loads room variants via a separate API call after SSR. The SSR HTML has `"offers": []` — variants are fetched client-side.
+
+### `POST /v2/api/getCalculatorOfferVariants/{offerId}`
+
+Returns all room variants with prices and flight times. No auth required.
+
+#### Request
+
+```json
+{
+  "adults": 2,
+  "kids": 2,
+  "serviceId": 1,
+  "infants": 0,
+  "duration": 7,
+  "kidsAges": ["20190603", "20210125"],
+  "departureDate": "2026-06-19",
+  "transportId": 1,
+  "departureCityId": 2622,
+  "departureCityCode": "WAW",
+  "hotelId": 15684,
+  "tourOp": "WEZY",
+  "tourId": 552,
+  "cruiseId": 0,
+  "roundTripId": 0,
+  "isAlternativeRoom": false,
+  "isOffer77": false
+}
+```
+
+Required fields from the search API response (not currently saved in `Offer` type):
+
+| Field | Source in search response | Example |
+|-------|--------------------------|---------|
+| `hotelId` | `offer.hotelId` | `15684` |
+| `tourOp` | `offer.offerHash.split(":")[0]` | `"WEZY"` |
+| `tourId` | `offer.tourOperator` (numeric) | `552` |
+
+Headers: standard browser headers + `Content-Type: application/json`, `Origin: https://www.wakacje.pl`.
+
+#### Response
+
+```json
+{
+  "success": true,
+  "datetime": "2026-02-26T20:00:55.974Z",
+  "data": {
+    "offers": [
+      {
+        "id": "pR-g5_aCUWcT...",
+        "roomDesc": "Long beach roh",
+        "tourOp": "WEZY",
+        "serviceId": 1,
+        "serviceDesc": "Ultra All Inclusive",
+        "transportId": 1,
+        "duration": 7,
+        "departureCode": "KTW",
+        "basePrice": 15244,
+        "totalPrice": 15244,
+        "priceCurrency": "PLN",
+        "roomCode": "15684",
+        "roomDescAdditional": ["Ultra All Inclusive"],
+        "departStart": {
+          "name": "Katowice", "airportCode": "KTW",
+          "date": "2026-06-19", "time": "01:00",
+          "flightOp": "Free Bird Airlines", "carrierCode": "FH 770"
+        },
+        "departEnd": {
+          "name": "Antalya", "airportCode": "AYT",
+          "date": "2026-06-19", "time": "04:55"
+        },
+        "returnStart": {
+          "name": "Antalya", "airportCode": "AYT",
+          "date": "2026-06-26", "time": "06:05",
+          "flightOp": "Pegasus Airlines", "carrierCode": "PC 6277"
+        },
+        "returnEnd": {
+          "name": "Katowice", "airportCode": "KTW",
+          "date": "2026-06-26", "time": "07:50"
+        }
+      }
+    ]
+  }
+}
+```
+
+Typically returns 10+ variants sorted by price. Each variant represents a different room type and/or flight combination for the same hotel.
+
+#### Key finding: prices match the search API
+
+Testing confirmed that the cheapest variant's `totalPrice` equals the search API `price` — the search API is **not** returning approximate prices. Any discrepancy a user sees is due to prices changing over time (dynamic pricing), not a systematic difference between APIs.
+
+#### Other detail page endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/v2/api/getOfferDataFromMerlin` | POST | Hotel metadata, attributes, promo flags |
+| `/v2/api/checkOfferAvailability` | GET | Real-time availability + per-person price breakdown |
+| `/v2/api/getIncludedLuggage` | POST | Baggage allowance info |
+| `/v2/api/offerConfiguratorV2/filters` | POST | Available filter options for the offer |
+| `/v2/api/getDescription` | GET | Full offer description text |
+| `/v2/api/getFacilities/{hotelId}` | GET | Hotel facilities details |
+| `/v2/api/getTranches` | GET | Payment installment options |
+| `/v2/api/getCrossell` | POST | Cross-sell products (parking, insurance) |
+| `/v2/api/getAdditionalProducts` | POST | Additional purchasable products |
+
+`checkOfferAvailability` is particularly useful — it takes an `offerHash` (from `getCalculatorOfferVariants`) and returns real-time availability, exact per-person prices, flight details, baggage info, and transfer details.

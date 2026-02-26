@@ -178,7 +178,7 @@ export function ChatPanel() {
   const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [isPreparingPrompt, setIsPreparingPrompt] = useState(false);
   const [copyToast, setCopyToast] = useState<null | "success" | "error">(null);
-  const [useFiltered, setUseFiltered] = useState(false);
+  const [useFiltered, setUseFiltered] = useState(true);
   const [qualityMode, setQualityMode] = useState<QualityMode>("precomputed");
   const snapshotId = useStore((s) => s.activeSnapshotId);
   const offers = useStore((s) => s.offers);
@@ -396,18 +396,6 @@ export function ChatPanel() {
           <div className="flex items-center gap-1.5 mt-3">
             <button
               type="button"
-              onClick={() => setUseFiltered(false)}
-              className={`px-3 py-1.5 rounded-sm text-[11px] font-semibold tracking-wide transition-all duration-200 border ${
-                !effectiveUseFiltered
-                  ? "bg-accent/15 border-accent/40 text-accent"
-                  : "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
-              }`}
-            >
-              Wszystkie
-              <span className="ml-1 font-mono opacity-70">{offers.length}</span>
-            </button>
-            <button
-              type="button"
               onClick={() => setUseFiltered(true)}
               disabled={!hasActiveFilters}
               className={`px-3 py-1.5 rounded-sm text-[11px] font-semibold tracking-wide transition-all duration-200 border ${
@@ -420,6 +408,18 @@ export function ChatPanel() {
             >
               Filtrowane
               <span className="ml-1 font-mono opacity-70">{filteredOffers.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseFiltered(false)}
+              className={`px-3 py-1.5 rounded-sm text-[11px] font-semibold tracking-wide transition-all duration-200 border ${
+                !effectiveUseFiltered
+                  ? "bg-accent/15 border-accent/40 text-accent"
+                  : "bg-transparent border-sand/8 text-sand-dim hover:border-sand/20 hover:text-sand"
+              }`}
+            >
+              Wszystkie
+              <span className="ml-1 font-mono opacity-70">{offers.length}</span>
             </button>
           </div>
 
