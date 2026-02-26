@@ -60,6 +60,15 @@ function escapeCsv(val: unknown): string {
   return s;
 }
 
+function resolveArg(): string | null {
+  const arg = process.argv[2];
+  if (!arg) return null;
+  if (!arg.includes("/") && !arg.endsWith(".json")) {
+    return join(SNAPSHOTS_DIR, arg, "offers.json");
+  }
+  return arg;
+}
+
 async function main() {
   const { maxPrice, minGmaps, minTripAdvisor = 0, minTrivago = 0 } = reportConfig;
 
@@ -71,7 +80,7 @@ async function main() {
   ].join(", ");
   console.log(`Filters: ${filterDesc}`);
 
-  const dataFile = process.argv[2] || (await findDataFile());
+  const dataFile = resolveArg() || (await findDataFile());
   console.log(`Input:   ${dataFile}\n`);
 
   const offers: Offer[] = JSON.parse(await readFile(dataFile, "utf-8"));

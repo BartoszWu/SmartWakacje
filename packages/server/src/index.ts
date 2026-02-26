@@ -4,6 +4,7 @@ import { existsSync, statSync } from "node:fs";
 import { join, extname } from "node:path";
 import { router } from "./trpc";
 import { offersRouter, snapshotsRouter } from "./routers";
+import { buildExternalPrompt, handleChatRequest, NO_OFFERS_CODE } from "./chat";
 
 export const appRouter = router({
   offers: offersRouter,
@@ -46,6 +47,13 @@ const MIME: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
 serve({
   port: PORT,
   async fetch(req) {
@@ -61,6 +69,40 @@ serve({
           "Access-Control-Allow-Headers": "Content-Type",
         },
       });
+    }
+
+    if (path === "/api/chat" && req.method === "POST") {
+      return handleChatRequest(req);
+    }
+
+    if (path === "/api/chat/fallback-prompt" && req.method === "POST") {
+      try {
+        const body = await req.json();
+        const snapshotId =
+          typeof body?.snapshotId === "string" && body.snapshotId.trim()
+            ? body.snapshotId.trim()
+            : null;
+        const question =
+          typeof body?.question === "string" ? body.question : "";
+        const prompt = await buildExternalPrompt(snapshotId, question);
+
+        return jsonResponse({ prompt });
+      } catch (error) {
+        if (error instanceof Error && error.message === NO_OFFERS_CODE) {
+          return jsonResponse(
+            { code: NO_OFFERS_CODE, error: "Brak ofert w snapshocie" },
+            400
+          );
+        }
+
+        return jsonResponse(
+          {
+            code: "FALLBACK_PROMPT_ERROR",
+            error: "Nie udało się przygotować promptu",
+          },
+          500
+        );
+      }
     }
 
     if (path.startsWith("/trpc")) {
@@ -96,7 +138,9 @@ serve({
 
 const keyStatus = process.env.GOOGLE_MAPS_API_KEY ? "loaded" : "MISSING";
 const taStatus = process.env.TRIPADVISOR_API_KEY ? "loaded" : "MISSING";
+const geminiStatus = process.env.GOOGLE_GENERATIVE_AI_API_KEY ? "loaded" : "MISSING";
 console.log(`SmartWakacje server → http://localhost:${PORT}`);
 console.log(`Google API key     → ${keyStatus}`);
 console.log(`TripAdvisor key    → ${taStatus}`);
 console.log(`Trivago            → no API key needed`);
+console.log(`Gemini AI key      → ${geminiStatus}`);

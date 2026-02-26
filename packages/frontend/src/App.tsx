@@ -7,6 +7,7 @@ import { Controls } from "./components/Controls";
 import { FilterBar } from "./components/FilterBar";
 import { OfferGrid } from "./components/OfferGrid";
 import { Pagination } from "./components/Pagination";
+import { ChatPanel } from "./components/ChatPanel";
 
 function OffersView() {
   const activeSnapshotId = useStore((s) => s.activeSnapshotId);
@@ -53,6 +54,7 @@ function OffersView() {
       <FilterBar />
       <OfferGrid />
       <Pagination />
+      <ChatPanel />
     </div>
   );
 }

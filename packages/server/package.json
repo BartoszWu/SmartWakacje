@@ -11,8 +11,10 @@
     "start": "~/.bun/bin/bun src/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.31",
     "@smartwakacje/shared": "*",
     "@trpc/server": "^11.0.0",
+    "ai": "^6.0.101",
     "zod": "^3.24.0"
   }
 }

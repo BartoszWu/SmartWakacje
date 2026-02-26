@@ -96,8 +96,18 @@ const CSV_COLUMNS: string[] = [
   "url", "photo",
 ];
 
+function resolveArg(): string | null {
+  const arg = process.argv[2];
+  if (!arg) return null;
+  // If it looks like a snapshot ID (no slashes, no .json), resolve to snapshot path
+  if (!arg.includes("/") && !arg.endsWith(".json")) {
+    return join(SNAPSHOTS_DIR, arg, "offers.json");
+  }
+  return arg;
+}
+
 async function main() {
-  const filePath = process.argv[2] || (await findNewestOffers());
+  const filePath = resolveArg() || (await findNewestOffers());
 
   const googleCacheFile = await findCacheFile("google-ratings-cache");
   const taCacheFile = await findCacheFile("ta-ratings-cache");
