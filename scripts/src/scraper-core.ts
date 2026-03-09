@@ -227,6 +227,7 @@ function parseOffer(config: ScraperConfig, o: WakacjeOffer): Offer {
     tourOperator: o.tourOperatorName,
     promoLastMinute: o.promoLastMinute,
     promoFirstMinute: o.promoFirstMinute,
+    photos: (o.photos?.["570,428"] ?? []).map(p => `https://www.wakacje.pl${p}`),
     photo: o.photos?.["570,428"]?.[0]
       ? `https://www.wakacje.pl${o.photos["570,428"][0]}`
       : "",

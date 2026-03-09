@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import type { Offer } from "@smartwakacje/shared";
 import { RatingBar } from "./RatingBar";
 import { formatDate } from "@smartwakacje/shared";
@@ -74,7 +74,18 @@ const ICONS = {
 
 export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
   const openOfferDetail = useStore((s) => s.openOfferDetail);
-  const photoUrl = offer.photo || `https://placehold.co/570x428/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 12))}`;
+  const allPhotos = offer.photos?.length ? offer.photos : offer.photo ? [offer.photo] : [];
+  const placeholder = `https://placehold.co/570x428/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 12))}`;
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const photoUrl = allPhotos[photoIdx] || placeholder;
+
+  const handleImgError = useCallback(() => {
+    setPhotoIdx(prev => {
+      const next = prev + 1;
+      return next < allPhotos.length ? next : allPhotos.length; // triggers placeholder
+    });
+  }, [allPhotos.length]);
+
   const quality = offer.qualityScore;
   const value = offer.valueScore;
 
@@ -88,6 +99,7 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
           src={photoUrl}
           alt={offer.name}
           loading="lazy"
+          onError={handleImgError}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-bg/85 via-transparent to-transparent pointer-events-none" />

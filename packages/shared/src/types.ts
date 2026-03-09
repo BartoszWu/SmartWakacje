@@ -24,6 +24,7 @@ export interface Offer {
   promoLastMinute: boolean;
   promoFirstMinute: boolean;
   photo: string;
+  photos?: string[];
   googleRating?: number;
   googleRatingsTotal?: number;
   googleMapsUrl?: string;
