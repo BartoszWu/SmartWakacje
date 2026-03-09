@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import { useStore } from "../store/useStore";
 import { trpc } from "../trpc";
 import { formatDate } from "@smartwakacje/shared";
@@ -298,6 +299,189 @@ function StatCard({
   );
 }
 
+/* ── Lightbox ──────────────────────────────────────── */
+function Lightbox({
+  photos,
+  initialIndex,
+  onClose,
+}: {
+  photos: string[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(initialIndex);
+
+  const prev = useCallback(() => setIdx((i) => (i > 0 ? i - 1 : photos.length - 1)), [photos.length]);
+  const next = useCallback(() => setIdx((i) => (i < photos.length - 1 ? i + 1 : 0)), [photos.length]);
+
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [onClose, prev, next]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ animation: "lightboxBgIn 0.25s ease-out forwards" }}
+    >
+      {/* backdrop */}
+      <div
+        className="absolute inset-0 bg-black/88 backdrop-blur-md"
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === "Enter") onClose(); }}
+        role="button"
+        tabIndex={-1}
+        aria-label="Zamknij"
+      />
+
+      {/* close */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-sand/10 backdrop-blur border border-sand/10 flex items-center justify-center text-sand-dim hover:text-sand-bright hover:bg-sand/20 transition-all"
+        aria-label="Zamknij"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+          <title>Zamknij</title>
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* counter */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 text-xs text-sand-dim font-bold uppercase tracking-widest">
+        {idx + 1} / {photos.length}
+      </div>
+
+      {/* nav arrows */}
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={prev}
+            className="absolute left-4 z-10 w-11 h-11 rounded-full bg-sand/8 backdrop-blur border border-sand/8 flex items-center justify-center text-sand-dim hover:text-sand-bright hover:bg-sand/18 transition-all"
+            aria-label="Poprzednie zdjecie"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5">
+              <title>Poprzednie</title>
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            className="absolute right-4 z-10 w-11 h-11 rounded-full bg-sand/8 backdrop-blur border border-sand/8 flex items-center justify-center text-sand-dim hover:text-sand-bright hover:bg-sand/18 transition-all"
+            aria-label="Nastepne zdjecie"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5">
+              <title>Nastepne</title>
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* image */}
+      <img
+        key={idx}
+        src={photos[idx]}
+        alt={`Zdjecie ${idx + 1}`}
+        className="relative z-[1] max-h-[85vh] max-w-[90vw] object-contain rounded-sm"
+        style={{ animation: "lightboxIn 0.3s cubic-bezier(.22,1,.36,1) forwards" }}
+      />
+    </div>
+  );
+}
+
+/* ── Photo Gallery ─────────────────────────────────── */
+function GalleryThumb({
+  url,
+  index,
+  onClick,
+  featured,
+}: {
+  url: string;
+  index: number;
+  onClick: () => void;
+  featured?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative rounded-sm overflow-hidden border border-sand/5 hover:border-sand/20 transition-all group focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none opacity-0 ${
+        featured ? "col-span-2 row-span-2 aspect-[4/3]" : "aspect-[4/3]"
+      }`}
+      style={{ animation: `galleryThumbIn 0.4s cubic-bezier(.22,1,.36,1) ${200 + index * 40}ms forwards` }}
+    >
+      <img
+        src={url}
+        alt={`Zdjecie ${index + 1}`}
+        loading="lazy"
+        className="w-full h-full object-cover transition-transform duration-400 group-hover:scale-[1.06]"
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-white drop-shadow-lg">
+          <title>Powieksz</title>
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35M11 8v6M8 11h6" />
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+function PhotoGallery({ photos }: { photos: string[] }) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  // Hide gallery when <=1 photo — the hero already shows it
+  if (photos.length <= 1) return null;
+
+  const hasFeatured = photos.length >= 5;
+
+  return (
+    <>
+      <section
+        className="mb-8 opacity-0"
+        style={{ animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.3s forwards" }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-xl text-sand-bright">Galeria</h2>
+          <span className="text-xs text-sand-dim font-medium">{photos.length} zdjec</span>
+        </div>
+        <div className="bg-bg-card border border-sand/5 rounded-sm p-3 md:p-4">
+          <div className={`grid gap-2 max-h-[28rem] overflow-y-auto pr-1 ${
+            hasFeatured ? "grid-cols-3 md:grid-cols-4" : "grid-cols-3 md:grid-cols-4"
+          }`}>
+            {photos.map((url, i) => (
+              <GalleryThumb
+                key={url}
+                url={url}
+                index={i}
+                onClick={() => setLightboxIdx(i)}
+                featured={hasFeatured && i === 0}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {lightboxIdx != null && (
+        <Lightbox
+          photos={photos}
+          initialIndex={lightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export function OfferDetailPage() {
   const offer = useStore((s) => s.activeOffer);
   const goBack = useStore((s) => s.goBackToOffers);
@@ -320,6 +504,8 @@ export function OfferDetailPage() {
         pricePerPerson: p.pricePerPerson,
       })
     ) ?? [];
+
+  const allPhotos = offer.photos?.length ? offer.photos : offer.photo ? [offer.photo] : [];
 
   const photoUrl =
     offer.photo ||
@@ -413,6 +599,9 @@ export function OfferDetailPage() {
         >
           <RatingBar offer={offer} />
         </div>
+
+        {/* ── Photo gallery ────────────────────────────────── */}
+        <PhotoGallery photos={allPhotos} />
 
         {/* Price summary row */}
         <div

@@ -39,24 +39,34 @@ export const offersRouter = router({
       const points: PriceHistoryPoint[] = [];
 
       for (const snapshot of allSnapshots) {
-        // Match by name (case-insensitive, trimmed)
-        const match = snapshot.offers.find(
+        // Find all variants (room types) for this hotel, pick cheapest
+        const matches = snapshot.offers.filter(
           (o) => o.name.toLowerCase().trim() === input.hotelName.toLowerCase().trim()
         );
-        if (match) {
+        if (matches.length > 0) {
+          const cheapest = matches.reduce((min, o) => o.price < min.price ? o : min);
           points.push({
             date: snapshot.createdAt,
-            price: match.price,
-            pricePerPerson: match.pricePerPerson,
+            price: cheapest.price,
+            pricePerPerson: cheapest.pricePerPerson,
             snapshotId: snapshot.snapshotId,
           });
         }
       }
 
-      const prices = points.map((p) => p.price);
-      const pricesPerPerson = points.map((p) => p.pricePerPerson);
-      const current = points.length > 0 ? points[points.length - 1] : null;
-      const first = points.length > 1 ? points[0] : null;
+      // Deduplicate: keep only cheapest per calendar day
+      const byDay = new Map<string, PriceHistoryPoint>();
+      for (const p of points) {
+        const day = p.date.slice(0, 10);
+        const existing = byDay.get(day);
+        if (!existing || p.price < existing.price) byDay.set(day, p);
+      }
+      const deduped = [...byDay.values()];
+
+      const prices = deduped.map((p) => p.price);
+      const pricesPerPerson = deduped.map((p) => p.pricePerPerson);
+      const current = deduped.length > 0 ? deduped[deduped.length - 1] : null;
+      const first = deduped.length > 1 ? deduped[0] : null;
 
       const priceChange = current && first ? current.price - first.price : null;
       const priceChangePercent =
@@ -66,7 +76,7 @@ export const offersRouter = router({
 
       return {
         hotelName: input.hotelName,
-        points,
+        points: deduped,
         currentPrice: current?.price ?? 0,
         currentPricePerPerson: current?.pricePerPerson ?? 0,
         minPrice: prices.length ? Math.min(...prices) : 0,
