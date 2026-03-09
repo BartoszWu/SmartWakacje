@@ -9,11 +9,12 @@ import {
   saveTACache,
   loadTrivagoCache,
   saveTrivagoCache,
+  loadAllSnapshotOffers,
 } from "../services/cache";
 import { searchGoogle } from "../services/google";
 import { searchTA, fetchTADetails } from "../services/tripadvisor";
 import { searchTrivago } from "../services/trivago";
-import type { Offer } from "@smartwakacje/shared";
+import type { Offer, PriceHistoryPoint, PriceHistoryResult } from "@smartwakacje/shared";
 
 // Track which snapshot is currently being viewed so rating updates go to the right place
 let activeSnapshotId: string | null = null;
@@ -29,6 +30,52 @@ export const offersRouter = router({
       const sid = input?.snapshotId ?? null;
       activeSnapshotId = sid;
       return loadOffers(sid);
+    }),
+
+  priceHistory: publicProcedure
+    .input(z.object({ hotelName: z.string() }))
+    .query(async ({ input }): Promise<PriceHistoryResult> => {
+      const allSnapshots = await loadAllSnapshotOffers();
+      const points: PriceHistoryPoint[] = [];
+
+      for (const snapshot of allSnapshots) {
+        // Match by name (case-insensitive, trimmed)
+        const match = snapshot.offers.find(
+          (o) => o.name.toLowerCase().trim() === input.hotelName.toLowerCase().trim()
+        );
+        if (match) {
+          points.push({
+            date: snapshot.createdAt,
+            price: match.price,
+            pricePerPerson: match.pricePerPerson,
+            snapshotId: snapshot.snapshotId,
+          });
+        }
+      }
+
+      const prices = points.map((p) => p.price);
+      const pricesPerPerson = points.map((p) => p.pricePerPerson);
+      const current = points.length > 0 ? points[points.length - 1] : null;
+      const first = points.length > 1 ? points[0] : null;
+
+      const priceChange = current && first ? current.price - first.price : null;
+      const priceChangePercent =
+        current && first && first.price > 0
+          ? ((current.price - first.price) / first.price) * 100
+          : null;
+
+      return {
+        hotelName: input.hotelName,
+        points,
+        currentPrice: current?.price ?? 0,
+        currentPricePerPerson: current?.pricePerPerson ?? 0,
+        minPrice: prices.length ? Math.min(...prices) : 0,
+        maxPrice: prices.length ? Math.max(...prices) : 0,
+        minPricePerPerson: pricesPerPerson.length ? Math.min(...pricesPerPerson) : 0,
+        maxPricePerPerson: pricesPerPerson.length ? Math.max(...pricesPerPerson) : 0,
+        priceChange,
+        priceChangePercent,
+      };
     }),
 
   fetchGoogleRating: publicProcedure

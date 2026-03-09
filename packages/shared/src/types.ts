@@ -1,5 +1,6 @@
 export interface Offer {
   id: string;
+  hotelId?: number;
   name: string;
   placeName: string;
   url: string;
@@ -95,6 +96,26 @@ export interface TrivagoCacheEntry {
   fetchedAt?: string;
 }
 
+export interface PriceHistoryPoint {
+  date: string;
+  price: number;
+  pricePerPerson: number;
+  snapshotId: string;
+}
+
+export interface PriceHistoryResult {
+  hotelName: string;
+  points: PriceHistoryPoint[];
+  currentPrice: number;
+  currentPricePerPerson: number;
+  minPrice: number;
+  maxPrice: number;
+  minPricePerPerson: number;
+  maxPricePerPerson: number;
+  priceChange: number | null;
+  priceChangePercent: number | null;
+}
+
 export type SortField =
   | "ratingValue"
   | "googleRating"
@@ -182,6 +203,7 @@ export interface SnapshotMeta {
 
 export interface RawWakacjeOffer {
   id: number;
+  hotelId?: number;
   name: string;
   placeName: string;
   url: string;

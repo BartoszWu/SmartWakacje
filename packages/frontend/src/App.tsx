@@ -8,6 +8,7 @@ import { FilterBar } from "./components/FilterBar";
 import { OfferGrid } from "./components/OfferGrid";
 import { Pagination } from "./components/Pagination";
 import { ChatPanel } from "./components/ChatPanel";
+import { OfferDetailPage } from "./components/OfferDetailPage";
 
 function OffersView() {
   const activeSnapshotId = useStore((s) => s.activeSnapshotId);
@@ -64,6 +65,10 @@ export default function App() {
 
   if (view === "home") {
     return <HomePage />;
+  }
+
+  if (view === "offerDetail") {
+    return <OfferDetailPage />;
   }
 
   return <OffersView />;

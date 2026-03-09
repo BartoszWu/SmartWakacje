@@ -15,6 +15,7 @@ interface ApiResponse {
 
 interface WakacjeOffer {
   id: number;
+  hotelId?: number;
   name: string;
   placeName: string;
   urlName: string;
@@ -203,6 +204,7 @@ function buildOfferUrl(config: ScraperConfig, o: WakacjeOffer): string | null {
 function parseOffer(config: ScraperConfig, o: WakacjeOffer): Offer {
   return {
     id: String(o.id),
+    hotelId: o.hotelId ?? undefined,
     name: o.name,
     placeName: o.placeName,
     url: buildOfferUrl(config, o) || "",

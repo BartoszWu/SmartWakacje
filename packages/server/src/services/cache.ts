@@ -167,6 +167,42 @@ export async function saveTrivagoCache(cache: Record<string, TrivagoCacheEntry>)
   return saveCache("trivago-ratings-cache", cache);
 }
 
+// ── Price history across snapshots ─────────────────────────────
+
+export interface SnapshotOfferSummary {
+  snapshotId: string;
+  createdAt: string;
+  offers: Array<{ name: string; hotelId?: number; price: number; pricePerPerson: number }>;
+}
+
+export async function loadAllSnapshotOffers(): Promise<SnapshotOfferSummary[]> {
+  const snapshots = await listSnapshots();
+  const results: SnapshotOfferSummary[] = [];
+
+  for (const meta of snapshots) {
+    try {
+      const offersFile = join(SNAPSHOTS_DIR, meta.id, "offers.json");
+      const raw = await readFile(offersFile, "utf-8");
+      const offers: Offer[] = JSON.parse(raw);
+      results.push({
+        snapshotId: meta.id,
+        createdAt: meta.createdAt,
+        offers: offers.map((o) => ({
+          name: o.name,
+          hotelId: o.hotelId,
+          price: o.price,
+          pricePerPerson: o.pricePerPerson,
+        })),
+      });
+    } catch {
+      // skip broken snapshots
+    }
+  }
+
+  // Sort oldest first for chronological chart
+  return results.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 // ── Exports for snapshot dir path ──────────────────────────────
 
 export { DATA_DIR, SNAPSHOTS_DIR, CACHE_DIR };

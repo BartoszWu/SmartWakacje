@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta } from "@smartwakacje/shared";
 
-type View = "home" | "offers";
+type View = "home" | "offers" | "offerDetail";
 
 interface StoreState {
   // Navigation
   view: View;
   activeSnapshotId: string | null;
   activeSnapshotMeta: SnapshotMeta | null;
+  activeOffer: Offer | null;
 
   // Offers data
   offers: Offer[];
@@ -22,6 +23,8 @@ interface StoreState {
   // Navigation actions
   setView: (view: View) => void;
   openSnapshot: (snapshotId: string, meta?: SnapshotMeta | null) => void;
+  openOfferDetail: (offer: Offer) => void;
+  goBackToOffers: () => void;
   goHome: () => void;
 
   // Data actions
@@ -63,6 +66,7 @@ export const useStore = create<StoreState>((set, get) => ({
   view: "home",
   activeSnapshotId: null,
   activeSnapshotMeta: null,
+  activeOffer: null,
 
   // Offers data
   offers: [],
@@ -82,6 +86,7 @@ export const useStore = create<StoreState>((set, get) => ({
       view: "offers",
       activeSnapshotId: snapshotId,
       activeSnapshotMeta: meta ?? null,
+      activeOffer: null,
       offers: [],
       filteredOffers: [],
       filters: initialFilters,
@@ -89,11 +94,21 @@ export const useStore = create<StoreState>((set, get) => ({
     });
   },
 
+  openOfferDetail: (offer) => {
+    set({ view: "offerDetail", activeOffer: offer });
+    window.scrollTo(0, 0);
+  },
+
+  goBackToOffers: () => {
+    set({ view: "offers", activeOffer: null });
+  },
+
   goHome: () => {
     set({
       view: "home",
       activeSnapshotId: null,
       activeSnapshotMeta: null,
+      activeOffer: null,
       offers: [],
       filteredOffers: [],
       filters: initialFilters,

@@ -2,6 +2,7 @@ import React from "react";
 import type { Offer } from "@smartwakacje/shared";
 import { RatingBar } from "./RatingBar";
 import { formatDate } from "@smartwakacje/shared";
+import { useStore } from "../store/useStore";
 
 function Stars({ count }: { count: number }) {
   return (
@@ -72,6 +73,7 @@ const ICONS = {
 };
 
 export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
+  const openOfferDetail = useStore((s) => s.openOfferDetail);
   const photoUrl = offer.photo || `https://placehold.co/570x428/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 12))}`;
   const quality = offer.qualityScore;
   const value = offer.valueScore;
@@ -163,17 +165,30 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
           <span className="text-xs font-semibold text-sand-dim bg-sand/5 px-2 py-0.5 rounded">
             {formatDate(offer.departureDate)} - {formatDate(offer.returnDate)}
           </span>
-          <a
-            href={offer.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-glow hover:scale-[1.04] transition-all"
-          >
-            Zobacz
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
-              <path d="M7 17L17 7M17 7H7M17 7v10" />
-            </svg>
-          </a>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => openOfferDetail(offer)}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-sand/8 text-sand-dim text-xs font-bold uppercase tracking-wide hover:bg-sand/15 hover:text-sand-bright hover:scale-[1.04] transition-all border border-sand/5"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                <path d="M3 3v18h18" />
+                <path d="M7 16l4-4 4 4 5-5" />
+              </svg>
+              Ceny
+            </button>
+            <a
+              href={offer.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-glow hover:scale-[1.04] transition-all"
+            >
+              Zobacz
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
+                <path d="M7 17L17 7M17 7H7M17 7v10" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     </article>
