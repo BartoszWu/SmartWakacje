@@ -2,6 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ──────────────────────────────────── */
+/* Colors stored as space-separated RGB channels for Tailwind opacity support */
+:root {
+  /* Dark theme (default) */
+  --color-bg: 20 20 22;
+  --color-bg-raised: 30 30 34;
+  --color-bg-card: 34 34 38;
+  --color-bg-card-hover: 42 42 47;
+  --color-sand: 232 220 200;
+  --color-sand-dim: 168 155 136;
+  --color-sand-bright: 245 239 228;
+  --color-accent: 212 98 26;
+  --color-accent-glow: 232 120 47;
+  --color-green: 76 175 106;
+  --color-red: 207 68 68;
+  --color-gold: 212 168 67;
+  --color-blue: 74 142 201;
+
+  /* Semantic tokens (full color values -- not used with opacity modifiers) */
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-backdrop: rgba(0, 0, 0, 0.3);
+  --color-noise-opacity: 0.035;
+  --color-glow-accent: rgba(212, 98, 26, 0.08);
+  --color-scrollbar-track: #141416;
+  --color-scrollbar-thumb: rgba(232, 220, 200, 0.15);
+  --color-scrollbar-thumb-hover: rgba(232, 220, 200, 0.25);
+  --color-chart-grid: rgba(232, 220, 200, 0.04);
+  --color-chart-axis-line: rgba(232, 220, 200, 0.06);
+  --color-chart-cursor: rgba(232, 220, 200, 0.1);
+  --color-chart-ref-line: rgba(232, 220, 200, 0.08);
+  --color-gradient-area-top: rgba(212, 98, 26, 0.35);
+  --color-gradient-area-mid: rgba(212, 98, 26, 0.12);
+  --color-gradient-area-bot: rgba(212, 98, 26, 0.02);
+  --color-drawer-top: #1a1a1f;
+  --color-drawer-bot: #141416;
+  --color-drawer-border: rgba(232, 220, 200, 0.06);
+  --shadow-default: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.6);
+  --shadow-accent: 0 4px 32px rgba(212, 98, 26, 0.35), 0 0 0 0 rgba(212, 98, 26, 0.2);
+
+  /* Rating segment colors (full hex -- used in inline styles and FilterBar text-[var()]) */
+  --color-google: #6aabf7;
+  --color-trivago: #a78bfa;
+  --color-ta: #4ade80;
+}
+
+html.light {
+  --color-bg: 245 241 235;
+  --color-bg-raised: 235 229 219;
+  --color-bg-card: 255 255 255;
+  --color-bg-card-hover: 248 245 240;
+  --color-sand: 61 53 41;
+  --color-sand-dim: 138 126 110;
+  --color-sand-bright: 26 22 16;
+  --color-accent: 196 82 10;
+  --color-accent-glow: 216 100 26;
+  --color-green: 45 143 78;
+  --color-red: 192 48 48;
+  --color-gold: 176 138 40;
+  --color-blue: 54 114 168;
+
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-backdrop: rgba(0, 0, 0, 0.15);
+  --color-noise-opacity: 0.02;
+  --color-glow-accent: rgba(196, 82, 10, 0.05);
+  --color-scrollbar-track: #f5f1eb;
+  --color-scrollbar-thumb: rgba(61, 53, 41, 0.15);
+  --color-scrollbar-thumb-hover: rgba(61, 53, 41, 0.3);
+  --color-chart-grid: rgba(61, 53, 41, 0.06);
+  --color-chart-axis-line: rgba(61, 53, 41, 0.1);
+  --color-chart-cursor: rgba(61, 53, 41, 0.15);
+  --color-chart-ref-line: rgba(61, 53, 41, 0.1);
+  --color-gradient-area-top: rgba(196, 82, 10, 0.2);
+  --color-gradient-area-mid: rgba(196, 82, 10, 0.08);
+  --color-gradient-area-bot: rgba(196, 82, 10, 0.01);
+  --color-drawer-top: #ffffff;
+  --color-drawer-bot: #f5f1eb;
+  --color-drawer-border: rgba(61, 53, 41, 0.1);
+  --shadow-default: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.12);
+  --shadow-accent: 0 4px 32px rgba(196, 82, 10, 0.15), 0 0 0 0 rgba(196, 82, 10, 0.1);
+
+  --color-google: #4285f4;
+  --color-trivago: #7c3aed;
+  --color-ta: #22c55e;
+}
+
+/* ── Keyframes ─────────────────────────────────────── */
 @keyframes cardIn {
   0% {
     opacity: 0;
@@ -79,6 +167,12 @@
   }
 }
 
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ── Base styles ───────────────────────────────────── */
 html {
   font-size: 15px;
   scroll-behavior: smooth;
@@ -87,6 +181,9 @@ html {
 
 body {
   @apply min-h-screen overflow-x-hidden;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-sand));
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body::before {
@@ -95,7 +192,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.035;
+  opacity: var(--color-noise-opacity);
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 180px;
 }
@@ -108,7 +205,7 @@ body::after {
   width: 600px;
   height: 600px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(212, 98, 26, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--color-glow-accent) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -118,14 +215,22 @@ body::after {
 }
 
 ::-webkit-scrollbar-track {
-  background: #141416;
+  background: var(--color-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(232, 220, 200, 0.15);
+  background: var(--color-scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 220, 200, 0.25);
+  background: var(--color-scrollbar-thumb-hover);
 }
+
+/* ── Select option styles for light mode ─────────── */
+html.light select option {
+  background-color: #ffffff;
+  color: #1a1610;
+}
+
+

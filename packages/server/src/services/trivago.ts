@@ -104,7 +104,6 @@ async function searchTrivagoConcept(
   name: string
 ): Promise<{ nsid: number; name: string; locationLabel: string } | null> {
   const clean = normalizeName(name);
-  console.log(`    [Trivago] search concept: "${clean}"`);
   const data = (await withTimeout(trivagoPost("/graphql?getSearchSuggestions", {
     variables: {
       input: {
@@ -136,7 +135,6 @@ async function searchTrivagoConcept(
   for (const s of suggestions) {
     const c = s.concept;
     if (c?.nsid?.ns === 100 && c.nsid.id) {
-      console.log(`    [Trivago] found nsid=${c.nsid.id} "${c.translatedName?.value}" (${c.locationLabel})`);
       return {
         nsid: c.nsid.id,
         name: c.translatedName?.value ?? "",
@@ -144,7 +142,6 @@ async function searchTrivagoConcept(
       };
     }
   }
-  console.log(`    [Trivago] no concept found for "${name}"`);
   return null;
 }
 
@@ -164,7 +161,6 @@ async function fetchTrivagoRatingsByNsid(nsid: number): Promise<{
   trivagoUrl: string;
   aspects: TrivagoAspects | null;
 }> {
-  console.log(`    [Trivago] fetching ratings for nsid=${nsid}...`);
   const html = await withTimeout(
     trivagoGet(`/pl/oar/hotel?search=100-${nsid}`),
     REQUEST_TIMEOUT_MS,
@@ -216,14 +212,12 @@ async function fetchTrivagoRatingsByNsid(nsid: number): Promise<{
     ? `https://www.trivago.pl${urlSlug}`
     : `https://www.trivago.pl/pl/oar/hotel?search=100-${nsid}`;
 
-  const result = {
+  return {
     rating: reviewRating?.formattedRating ? parseFloat(reviewRating.formattedRating) : null,
     reviewsCount: reviewRating?.reviewsCount ?? null,
     trivagoUrl,
     aspects: Object.keys(aspects).length > 0 ? aspects : null,
   };
-  console.log(`    [Trivago] nsid=${nsid} → rating=${result.rating}, reviews=${result.reviewsCount}`);
-  return result;
 }
 
 export async function searchTrivago(name: string): Promise<TrivagoSearchResult[]> {

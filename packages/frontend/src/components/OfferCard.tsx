@@ -20,6 +20,23 @@ function Stars({ count }: { count: number }) {
   );
 }
 
+const COUNTRY_FLAGS: Record<string, string> = {
+  Grecja: "\u{1F1EC}\u{1F1F7}",
+  Turcja: "\u{1F1F9}\u{1F1F7}",
+  Tunezja: "\u{1F1F9}\u{1F1F3}",
+  Egipt: "\u{1F1EA}\u{1F1EC}",
+  Hiszpania: "\u{1F1EA}\u{1F1F8}",
+  Chorwacja: "\u{1F1ED}\u{1F1F7}",
+  "Bu\u0142garia": "\u{1F1E7}\u{1F1EC}",
+  Cypr: "\u{1F1E8}\u{1F1FE}",
+  Maroko: "\u{1F1F2}\u{1F1E6}",
+  Portugalia: "\u{1F1F5}\u{1F1F9}",
+  "W\u0142ochy": "\u{1F1EE}\u{1F1F9}",
+  "Czarnog\u00F3ra": "\u{1F1F2}\u{1F1EA}",
+  Albania: "\u{1F1E6}\u{1F1F1}",
+  Malta: "\u{1F1F2}\u{1F1F9}",
+};
+
 function MetaChip({ icon, value, label }: { icon: React.ReactNode; value: number | null | undefined; label: string }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-sand/5 text-xs font-semibold text-sand-dim">
@@ -111,7 +128,7 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
           onError={handleImgError}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-bg/85 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
         <div className="absolute top-3 left-3 flex gap-1.5 z-10">
           {offer.promoFirstMinute && (
@@ -125,10 +142,17 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
             </span>
           )}
           {offer.serviceDesc && (
-            <span className="px-2.5 py-1 rounded-full bg-black/55 text-sand-bright text-[10px] font-bold uppercase tracking-wide backdrop-blur border border-white/10">
+            <span className="px-2.5 py-1 rounded-full bg-black/55 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur border border-white/10">
               {offer.serviceDesc}
             </span>
           )}
+        </div>
+
+        <div className="absolute top-3 right-3 z-10">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur border border-white/10 text-[11px] font-bold text-white">
+            <span className="text-sm leading-none">{COUNTRY_FLAGS[offer.country] || "\u{1F30D}"}</span>
+            {offer.country}
+          </span>
         </div>
 
         <RatingBar offer={offer} />

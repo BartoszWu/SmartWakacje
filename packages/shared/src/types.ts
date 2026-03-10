@@ -169,6 +169,8 @@ export interface ScraperConfig {
   attributes: number[];
   pageSize: number;
   delayBetweenPages: number;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface FetchProviderConfig {

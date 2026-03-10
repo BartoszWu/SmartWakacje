@@ -49,9 +49,9 @@ function ChatIcon() {
         d="M12 2C6.48 2 2 5.92 2 10.66c0 2.75 1.53 5.2 3.93 6.77L4.5 22l4.73-2.23c.88.22 1.81.34 2.77.34 5.52 0 10-3.92 10-8.45C22 6.92 17.52 2 12 2z"
         fill="currentColor"
       />
-      <circle cx="8" cy="10.5" r="1.25" fill="#141416" />
-      <circle cx="12" cy="10.5" r="1.25" fill="#141416" />
-      <circle cx="16" cy="10.5" r="1.25" fill="#141416" />
+      <circle cx="8" cy="10.5" r="1.25" fill="rgb(var(--color-bg))" />
+      <circle cx="12" cy="10.5" r="1.25" fill="rgb(var(--color-bg))" />
+      <circle cx="16" cy="10.5" r="1.25" fill="rgb(var(--color-bg))" />
     </svg>
   );
 }
@@ -178,6 +178,7 @@ export function ChatPanel() {
   const [fallbackError, setFallbackError] = useState<string | null>(null);
   const [isPreparingPrompt, setIsPreparingPrompt] = useState(false);
   const [copyToast, setCopyToast] = useState<null | "success" | "error">(null);
+  const [fallbackDismissed, setFallbackDismissed] = useState(false);
   const [useFiltered, setUseFiltered] = useState(true);
   const [qualityMode, setQualityMode] = useState<QualityMode>("precomputed");
   const snapshotId = useStore((s) => s.activeSnapshotId);
@@ -282,23 +283,19 @@ export function ChatPanel() {
       }
 
       setFallbackPrompt(data.prompt);
+
+      try {
+        await navigator.clipboard.writeText(data.prompt);
+        showCopyToast("success");
+      } catch {
+        // clipboard may fail (e.g. no focus / permissions) – prompt is still visible
+      }
     } catch (err) {
       setFallbackError(
         err instanceof Error ? err.message : "Nie udało się przygotować promptu"
       );
     } finally {
       setIsPreparingPrompt(false);
-    }
-  };
-
-  const copyFallbackPrompt = async () => {
-    if (!fallbackPrompt.trim()) return;
-
-    try {
-      await navigator.clipboard.writeText(fallbackPrompt);
-      showCopyToast("success");
-    } catch {
-      showCopyToast("error");
     }
   };
 
@@ -309,13 +306,15 @@ export function ChatPanel() {
   };
 
   const submitPrimaryAction = () => {
-    if (!(missingKeyMode ? fallbackQuestion : input.trim())) return;
-
     if (missingKeyMode) {
-      void prepareFallbackPrompt(fallbackQuestion);
+      const question = fallbackDismissed ? input.trim() : fallbackQuestion;
+      if (!question) return;
+      if (fallbackDismissed) setInput("");
+      void prepareFallbackPrompt(question);
       return;
     }
 
+    if (!input.trim()) return;
     send(input);
   };
 
@@ -339,8 +338,8 @@ export function ChatPanel() {
         } ${open ? "" : "bottom-6"}`}
         style={{
           boxShadow: open
-            ? "0 4px 24px rgba(0,0,0,.4)"
-            : "0 4px 32px rgba(212,98,26,.35), 0 0 0 0 rgba(212,98,26,.2)",
+            ? "var(--shadow-default)"
+            : "var(--shadow-accent)",
         }}
       >
         {open ? <CloseIcon /> : <ChatIcon />}
@@ -363,8 +362,8 @@ export function ChatPanel() {
           open ? "translate-x-0" : "translate-x-full"
         }`}
         style={{
-          background: "linear-gradient(180deg, #1a1a1f 0%, #141416 100%)",
-          borderLeft: "1px solid rgba(232,220,200,0.06)",
+          background: `linear-gradient(180deg, var(--color-drawer-top) 0%, var(--color-drawer-bot) 100%)`,
+          borderLeft: `1px solid var(--color-drawer-border)`,
         }}
       >
         {/* Header */}
@@ -569,7 +568,7 @@ export function ChatPanel() {
             </div>
           )}
 
-          {missingKeyMode && (
+          {missingKeyMode && !fallbackDismissed && (
             <div className="mb-3 p-3 rounded-sm border border-accent/35 bg-accent/8 shadow-lg">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -580,9 +579,25 @@ export function ChatPanel() {
                     Przygotuj prompt i wklej go do zewnętrznego LLM.
                   </p>
                 </div>
-                <span className="text-[10px] px-2 py-1 rounded-sm border border-sand/15 text-sand-dim">
-                  Zewnętrzny LLM
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-1 rounded-sm border border-sand/15 text-sand-dim">
+                    Zewnętrzny LLM
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFallbackDismissed(true);
+                      setFallbackPrompt("");
+                      setFallbackError(null);
+                    }}
+                    title="Zamknij panel"
+                    className="w-6 h-6 flex items-center justify-center rounded-sm text-sand-dim hover:text-sand-bright hover:bg-sand/10 transition-colors"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {!input.trim() && lastUserQuestion && (
@@ -600,14 +615,7 @@ export function ChatPanel() {
                 >
                   {isPreparingPrompt ? "Przygotowywanie..." : "Przygotuj prompt"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void copyFallbackPrompt()}
-                  disabled={!fallbackPrompt.trim()}
-                  className="px-3 py-2 rounded-sm text-[12px] font-medium border border-sand/20 text-sand-bright disabled:opacity-40 disabled:cursor-not-allowed hover:border-sand/40 transition-colors"
-                >
-                  Kopiuj prompt
-                </button>
+
               </div>
 
               {fallbackError && (
@@ -642,7 +650,9 @@ export function ChatPanel() {
             <button
               type="submit"
               disabled={
-                !(missingKeyMode ? fallbackQuestion : input.trim()) ||
+                !(missingKeyMode
+                  ? (fallbackDismissed ? input.trim() : fallbackQuestion)
+                  : input.trim()) ||
                 isLoading ||
                 (missingKeyMode && isPreparingPrompt)
               }
@@ -655,12 +665,7 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <style>{`
-        @keyframes dotBounce {
-          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-          40% { transform: translateY(-4px); opacity: 1; }
-        }
-      `}</style>
+      {/* dotBounce keyframes defined in index.css */}
     </>
   );
 }

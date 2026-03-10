@@ -10,6 +10,7 @@ import {
 } from "@smartwakacje/shared";
 import type { SnapshotMeta } from "@smartwakacje/shared";
 import { ScrapeProgressOverlay } from "./ScrapeProgressOverlay";
+import { ThemeToggle } from "./ThemeToggle";
 
 const airportEntries = Object.entries(AIRPORT_IDS);
 const countryEntries = Object.entries(COUNTRY_IDS);
@@ -53,9 +54,12 @@ export function HomePage() {
   const [children, setChildren] = React.useState<number>(DEFAULT_SCRAPER_CONFIG.children);
   const [childAges, setChildAges] = React.useState<string[]>([...DEFAULT_SCRAPER_CONFIG.childAges]);
   const [attributes, setAttributes] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.attributes]);
+  const [minPrice, setMinPrice] = React.useState<string>(String(DEFAULT_SCRAPER_CONFIG.minPrice));
+  const [maxPrice, setMaxPrice] = React.useState<string>(String(DEFAULT_SCRAPER_CONFIG.maxPrice));
 
   // Scraping state
   const [isScraping, setIsScraping] = React.useState(false);
+  const [pendingMeta, setPendingMeta] = React.useState<SnapshotMeta | null>(null);
 
   // @ts-expect-error - tRPC type inference issue with monorepo
   const utils = trpc.useUtils();
@@ -75,6 +79,7 @@ export function HomePage() {
   async function handleScrape() {
     if (airports.length === 0 || countries.length === 0) return;
     setIsScraping(true);
+    setPendingMeta(null);
     try {
       const meta = await scrapeMutation.mutateAsync({
         departureDateFrom: dateFrom,
@@ -88,13 +93,26 @@ export function HomePage() {
         attributes,
         pageSize: 50,
         delayBetweenPages: 1000,
+        ...(minPrice ? { minPrice: Number(minPrice) } : {}),
+        ...(maxPrice ? { maxPrice: Number(maxPrice) } : {}),
       });
       utils.snapshots.list.invalidate();
-      openSnapshot(meta.id, meta);
+      setPendingMeta(meta);
+      // Don't navigate yet — let overlay decide (clean finish vs warnings)
+      // If no warnings, server calls finishScrapeProgress() and overlay auto-navigates
+      // If warnings, overlay shows summary with retry/continue buttons
     } catch (err) {
       console.error("Scrape failed:", err);
       setIsScraping(false);
     }
+  }
+
+  function handleOverlayContinue(snapshotId: string) {
+    utils.snapshots.list.invalidate();
+    const meta = pendingMeta?.id === snapshotId ? pendingMeta : undefined;
+    setIsScraping(false);
+    setPendingMeta(null);
+    openSnapshot(snapshotId, meta || undefined);
   }
 
   function handleChildrenChange(n: number) {
@@ -112,7 +130,12 @@ export function HomePage() {
 
   // Scraping overlay
   if (isScraping) {
-    return <ScrapeProgressOverlay />;
+    return (
+      <ScrapeProgressOverlay
+        completedSnapshotId={pendingMeta?.id ?? null}
+        onContinue={handleOverlayContinue}
+      />
+    );
   }
 
   return (
@@ -120,12 +143,17 @@ export function HomePage() {
       {/* Hero */}
       <header className="pt-12 pb-8 px-8">
         <div className="max-w-6xl mx-auto">
-          <h1 className="font-display text-5xl text-sand-bright tracking-tight mb-2">
-            Smart<span className="text-accent">Wakacje</span>
-          </h1>
-          <p className="text-sand-dim text-sm max-w-md leading-relaxed">
-            Wyszukaj oferty wakacyjne z wakacje.pl, porownaj ceny i oceny z Google Maps, TripAdvisor i Trivago.
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="font-display text-5xl text-sand-bright tracking-tight mb-2">
+                Smart<span className="text-accent">Wakacje</span>
+              </h1>
+              <p className="text-sand-dim text-sm max-w-md leading-relaxed">
+                Wyszukaj oferty wakacyjne z wakacje.pl, porownaj ceny i oceny z Google Maps, TripAdvisor i Trivago.
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -228,6 +256,39 @@ export function HomePage() {
                   ))}
                 </select>
               </div>
+
+              {/* Price range */}
+              <div className="grid grid-cols-2 gap-4 mb-5">
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-widest text-sand-dim font-semibold mb-1.5 block">
+                    Cena od (PLN)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={500}
+                    placeholder="np. 8000"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    className="w-full bg-bg-raised border border-sand/10 rounded-sm px-3 py-2 text-sand-bright text-sm focus:outline-none focus:border-accent/50 transition-colors"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] uppercase tracking-widest text-sand-dim font-semibold mb-1.5 block">
+                    Cena do (PLN)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={500}
+                    placeholder="np. 14000"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    className="w-full bg-bg-raised border border-sand/10 rounded-sm px-3 py-2 text-sand-bright text-sm focus:outline-none focus:border-accent/50 transition-colors"
+                  />
+                </label>
+              </div>
+              <p className="text-[10px] text-sand-dim/60 -mt-3 mb-5">Cena calkowita za pokoj (nie za osobe)</p>
 
               {/* Amenities */}
               <fieldset className="mb-5">

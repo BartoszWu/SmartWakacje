@@ -1,8 +1,14 @@
 import https from "node:https";
 import type { Offer, ScraperConfig } from "@smartwakacje/shared";
+import { COUNTRY_IDS } from "@smartwakacje/shared";
+
+const COUNTRY_NAMES: Record<number, string> = Object.fromEntries(
+  Object.entries(COUNTRY_IDS).map(([name, id]) => [id, name]),
+);
 
 const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 200;
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 2;
 
 interface ApiResponse {
   success: boolean;
@@ -107,8 +113,8 @@ function buildBody(config: ScraperConfig, page: number) {
           departure: config.airports,
           type: [],
           duration: { min: 7, max: 28 },
-          minPrice: null,
-          maxPrice: null,
+          minPrice: config.minPrice ?? null,
+          maxPrice: config.maxPrice ?? null,
           service: [config.service],
           firstminute: null,
           attribute: config.attributes.map(String),
@@ -172,9 +178,31 @@ function post(body: unknown): Promise<ApiResponse["data"]> {
         });
       }
     );
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error("wakacje.pl request timeout"));
+    });
     req.on("error", reject);
     req.end(data);
   });
+}
+
+async function postWithRetry(body: unknown, label: string): Promise<ApiResponse["data"]> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await post(body);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < MAX_RETRIES) {
+        const delay = (attempt + 1) * 1000;
+        console.warn(`  [Scraper] ${label} failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${msg}, retrying in ${delay}ms...`);
+        await sleep(delay);
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error("unreachable");
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -240,18 +268,20 @@ export interface ScrapeResult {
   totalCount: number;
 }
 
-export async function scrapeOffers(
+async function scrapeCountry(
   config: ScraperConfig,
-  onProgress?: (page: number, totalPages: number, fetched: number, total: number) => void
-): Promise<ScrapeResult> {
-  const first = await post(buildBody(config, 1));
-  if (!first) throw new Error("No data returned from API");
+  onProgress?: (page: number, totalPages: number, fetched: number, total: number, countryName?: string) => void,
+  countryName?: string,
+): Promise<{ raw: WakacjeOffer[]; count: number }> {
+  const first = await postWithRetry(buildBody(config, 1), "page 1");
+  if (!first) return { raw: [], count: 0 };
 
   const total = first.count;
   const totalPages = Math.ceil(total / config.pageSize);
-  onProgress?.(1, totalPages, first.offers.length, total);
+  const delay = config.delayBetweenPages ?? 500;
+  onProgress?.(1, totalPages, first.offers.length, total, countryName);
 
-  const pageResults: WakacjeOffer[][] = new Array(totalPages);
+  const pageResults: (WakacjeOffer[] | null)[] = new Array(totalPages).fill(null);
   pageResults[0] = first.offers as WakacjeOffer[];
 
   for (let b = 1; b < totalPages; b += BATCH_SIZE) {
@@ -260,19 +290,56 @@ export async function scrapeOffers(
       batch.push(p + 1);
     }
 
-    const results = await Promise.all(batch.map((p) => post(buildBody(config, p))));
+    const results = await Promise.allSettled(
+      batch.map((p) => postWithRetry(buildBody(config, p), `page ${p}`))
+    );
     for (let i = 0; i < results.length; i++) {
       const p = batch[i];
-      pageResults[p - 1] = results[i]?.offers as WakacjeOffer[];
-      const fetched = pageResults.reduce((s, r) => s + (r ? r.length : 0), 0);
-      onProgress?.(p, totalPages, fetched, total);
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        pageResults[p - 1] = r.value?.offers as WakacjeOffer[];
+      } else {
+        console.warn(`  [Scraper] page ${p}/${totalPages} failed permanently: ${r.reason?.message ?? r.reason}`);
+      }
+      const fetched = pageResults.reduce((s, arr) => s + (arr ? arr.length : 0), 0);
+      onProgress?.(p, totalPages, fetched, total, countryName);
     }
 
-    if (b + BATCH_SIZE < totalPages) await sleep(BATCH_DELAY_MS);
+    if (b + BATCH_SIZE < totalPages) await sleep(delay);
   }
 
-  const allOffers = pageResults.flat();
-  const parsed = allOffers.map((o) => parseOffer(config, o));
+  const failedPages = pageResults.filter((r) => r === null).length;
+  if (failedPages > 0) {
+    console.warn(`  [Scraper] ${failedPages}/${totalPages} pages failed, continuing with partial results`);
+  }
 
-  return { raw: allOffers, parsed, totalCount: total };
+  return { raw: pageResults.filter(Boolean).flat() as WakacjeOffer[], count: total };
+}
+
+export async function scrapeOffers(
+  config: ScraperConfig,
+  onProgress?: (page: number, totalPages: number, fetched: number, total: number, countryName?: string) => void
+): Promise<ScrapeResult> {
+  const allRaw: WakacjeOffer[] = [];
+  let totalCount = 0;
+
+  // Scrape each country separately to avoid API silently dropping countries
+  for (const countryId of config.countries) {
+    const countryName = COUNTRY_NAMES[countryId] ?? `ID ${countryId}`;
+    const countryConfig = { ...config, countries: [countryId] };
+    const result = await scrapeCountry(countryConfig, onProgress, countryName);
+    allRaw.push(...result.raw);
+    totalCount += result.count;
+  }
+
+  // Deduplicate by offer id
+  const seen = new Set<number>();
+  const dedupedRaw = allRaw.filter((o) => {
+    if (seen.has(o.id)) return false;
+    seen.add(o.id);
+    return true;
+  });
+
+  const parsed = dedupedRaw.map((o) => parseOffer(config, o));
+  return { raw: dedupedRaw, parsed, totalCount };
 }

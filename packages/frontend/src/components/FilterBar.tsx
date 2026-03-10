@@ -29,7 +29,7 @@ export function FilterBar() {
               placeholder="od"
               value={filters.priceMin || ""}
               onChange={(e) => setFilter("priceMin", Number(e.target.value) || 0)}
-              className="w-24 py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none focus:border-accent"
+              className="w-24 py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none focus:border-accent"
             />
             <span className="text-sand-dim text-sm px-1">–</span>
             <input
@@ -37,7 +37,7 @@ export function FilterBar() {
               placeholder="do"
               value={filters.priceMax === Infinity ? "" : filters.priceMax}
               onChange={(e) => setFilter("priceMax", Number(e.target.value) || Infinity)}
-              className="w-24 py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none focus:border-accent"
+              className="w-24 py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none focus:border-accent"
             />
           </div>
         </div>
@@ -50,7 +50,7 @@ export function FilterBar() {
               placeholder="od"
               value={filters.priceTotalMin || ""}
               onChange={(e) => setFilter("priceTotalMin", Number(e.target.value) || 0)}
-              className="w-24 py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none focus:border-accent"
+              className="w-24 py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none focus:border-accent"
             />
             <span className="text-sand-dim text-sm px-1">–</span>
             <input
@@ -58,7 +58,7 @@ export function FilterBar() {
               placeholder="do"
               value={filters.priceTotalMax === Infinity ? "" : filters.priceTotalMax}
               onChange={(e) => setFilter("priceTotalMax", Number(e.target.value) || Infinity)}
-              className="w-24 py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none focus:border-accent"
+              className="w-24 py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none focus:border-accent"
             />
           </div>
         </div>
@@ -68,7 +68,7 @@ export function FilterBar() {
           <select
             value={filters.minStars}
             onChange={(e) => setFilter("minStars", Number(e.target.value))}
-            className="py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none cursor-pointer focus:border-accent"
+            className="py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none cursor-pointer focus:border-accent"
           >
             <option value="0">Wszystkie</option>
             <option value="3">3+</option>
@@ -91,7 +91,7 @@ export function FilterBar() {
         </button>
       </div>
 
-      <div className="flex items-center gap-1 py-1 px-2 bg-white/[0.025] border border-sand/5 rounded flex-wrap">
+      <div className="flex items-center gap-1 py-1 px-2 bg-bg-raised/50 border border-sand/5 rounded flex-wrap">
         <FilterPill
           label="W"
           color="text-gold"
@@ -110,7 +110,7 @@ export function FilterBar() {
 
         <FilterPill
           label="G"
-          color="text-[#6aabf7]"
+          color="text-[var(--color-google)]"
           value={filters.minGmaps}
           options={[
             { value: 0, label: "GMaps" },
@@ -125,7 +125,7 @@ export function FilterBar() {
 
         <FilterPill
           label="tv"
-          color="text-[#a78bfa]"
+          color="text-[var(--color-trivago)]"
           value={filters.minTrivago}
           options={[
             { value: 0, label: "Trivago" },
@@ -140,7 +140,7 @@ export function FilterBar() {
 
         <FilterPill
           label="TA"
-          color="text-[#4ade80]"
+          color="text-[var(--color-ta)]"
           value={filters.minTA}
           options={[
             { value: 0, label: "TripAdvisor" },

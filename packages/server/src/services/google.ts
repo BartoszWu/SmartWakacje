@@ -6,17 +6,28 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 function get(url: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
+
+    // Hard deadline — fires regardless of socket state (DNS stall, trickle response, etc.)
+    const timer = setTimeout(() => {
+      done(() => { req.destroy(); reject(new Error("Google API hard timeout")); });
+    }, REQUEST_TIMEOUT_MS);
+
     const req = https.get(url, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
+        clearTimeout(timer);
         const raw = Buffer.concat(chunks).toString();
         if (res.statusCode !== 200)
-          return reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
-        resolve(JSON.parse(raw));
+          return done(() => reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`)));
+        done(() => resolve(JSON.parse(raw)));
       });
-    }).on("error", reject);
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => { req.destroy(); reject(new Error("Google API timeout")); });
+    }).on("error", (err) => {
+      clearTimeout(timer);
+      done(() => reject(err));
+    });
   });
 }
 
@@ -48,6 +59,13 @@ export async function searchGoogle(
       place_id?: string;
     }>;
   };
+
+  if (data.status === "OVER_QUERY_LIMIT") {
+    throw new Error("Google API: OVER_QUERY_LIMIT (rate limited)");
+  }
+  if (data.status === "REQUEST_DENIED") {
+    throw new Error(`Google API: REQUEST_DENIED`);
+  }
 
   if (data.status === "OK" && data.results?.length > 0) {
     return data.results.slice(0, 5).map((r) => ({

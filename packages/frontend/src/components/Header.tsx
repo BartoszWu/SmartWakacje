@@ -1,4 +1,5 @@
 import { useStore } from "../store/useStore";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const offers = useStore((s) => s.offers);
@@ -44,7 +45,7 @@ export function Header() {
             </span>
           )}
         </div>
-        <div className="flex gap-6 text-xs font-semibold uppercase tracking-wider text-sand-dim">
+        <div className="flex items-center gap-6 text-xs font-semibold uppercase tracking-wider text-sand-dim">
           <div>
             Oferty<span className="text-sand-bright font-bold ml-1">{n}</span>
           </div>
@@ -57,6 +58,7 @@ export function Header() {
           <div>
             Min cena/os<span className="text-sand-bright font-bold ml-1">{minPrice.toLocaleString("pl")} zl</span>
           </div>
+          <ThemeToggle />
         </div>
       </div>
     </header>

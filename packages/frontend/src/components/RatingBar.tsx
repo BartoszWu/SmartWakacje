@@ -4,18 +4,33 @@ import { useStore } from "../store/useStore";
 import type { Offer } from "@smartwakacje/shared";
 import { abbreviateCount } from "@smartwakacje/shared";
 
-export function RatingBar({ offer }: { offer: Offer }) {
+export type RatingBarVariant = "overlay" | "standalone";
+
+export function RatingBar({
+  offer,
+  variant = "overlay",
+}: {
+  offer: Offer;
+  variant?: RatingBarVariant;
+}) {
+  const isOverlay = variant === "overlay";
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-20 flex bg-black/70 backdrop-blur border-t border-sand/5 text-xs font-bold">
-      <GoogleSegment offer={offer} />
-      <TrivagoSegment offer={offer} />
-      <TASegment offer={offer} />
-      <WakacjeSegment offer={offer} />
+    <div
+      className={`flex text-xs font-bold ${
+        isOverlay
+          ? "absolute bottom-0 left-0 right-0 z-20 bg-black/70 backdrop-blur border-t border-white/5"
+          : "bg-bg-card border-sand/8"
+      }`}
+    >
+      <GoogleSegment offer={offer} variant={variant} />
+      <TrivagoSegment offer={offer} variant={variant} />
+      <TASegment offer={offer} variant={variant} />
+      <WakacjeSegment offer={offer} variant={variant} />
     </div>
   );
 }
 
-function GoogleSegment({ offer }: { offer: Offer }) {
+function GoogleSegment({ offer, variant }: { offer: Offer; variant: RatingBarVariant }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const updateOffer = useStore((s) => s.updateOffer);
@@ -54,36 +69,33 @@ function GoogleSegment({ offer }: { offer: Offer }) {
   if (hasRating) {
     return (
       <SegmentButton
-        color="#6aabf7"
+        color="var(--color-google)"
         label="G"
         value={offer.googleRating!.toFixed(1)}
         count={abbreviateCount(offer.googleRatingsTotal)}
         onClick={() => setIsOpen(!isOpen)}
+        variant={variant}
       />
     );
   }
 
   if (notFound) {
-    return (
-      <span className="flex-1 flex items-center justify-center gap-1 py-2 text-sand-dim opacity-30 cursor-default border-r border-sand/5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">G</span>
-        <span>–</span>
-      </span>
-    );
+    return <NotFoundSegment label="G" variant={variant} />;
   }
 
   return (
     <SegmentButton
-      color="#6aabf7"
+      color="var(--color-google)"
       label="G"
       value="?"
       onClick={handleFetch}
       loading={isLoading}
+      variant={variant}
     />
   );
 }
 
-function TrivagoSegment({ offer }: { offer: Offer }) {
+function TrivagoSegment({ offer, variant }: { offer: Offer; variant: RatingBarVariant }) {
   const [isLoading, setIsLoading] = useState(false);
   const updateOffer = useStore((s) => s.updateOffer);
   const markNotFound = useStore((s) => s.markTrivagoNotFound);
@@ -119,29 +131,25 @@ function TrivagoSegment({ offer }: { offer: Offer }) {
   if (hasRating) {
     return (
       <SegmentButton
-        color="#a78bfa"
+        color="var(--color-trivago)"
         label="tv"
         value={offer.trivagoRating!.toFixed(1)}
         count={abbreviateCount(offer.trivagoReviewsCount)}
+        variant={variant}
       />
     );
   }
 
   if (notFound) {
-    return (
-      <span className="flex-1 flex items-center justify-center gap-1 py-2 text-sand-dim opacity-30 cursor-default border-r border-sand/5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">tv</span>
-        <span>–</span>
-      </span>
-    );
+    return <NotFoundSegment label="tv" variant={variant} />;
   }
 
   return (
-    <SegmentButton color="#a78bfa" label="tv" value="?" onClick={handleFetch} loading={isLoading} />
+    <SegmentButton color="var(--color-trivago)" label="tv" value="?" onClick={handleFetch} loading={isLoading} variant={variant} />
   );
 }
 
-function TASegment({ offer }: { offer: Offer }) {
+function TASegment({ offer, variant }: { offer: Offer; variant: RatingBarVariant }) {
   const [isLoading, setIsLoading] = useState(false);
   const updateOffer = useStore((s) => s.updateOffer);
   // @ts-expect-error - tRPC type inference issue with monorepo
@@ -178,45 +186,61 @@ function TASegment({ offer }: { offer: Offer }) {
   if (hasRating) {
     return (
       <SegmentButton
-        color="#4ade80"
+        color="var(--color-ta)"
         label="TA"
         value={offer.taRating!.toFixed(1)}
         count={abbreviateCount(offer.taReviewCount)}
+        variant={variant}
       />
     );
   }
 
   if (notFound) {
-    return (
-      <span className="flex-1 flex items-center justify-center gap-1 py-2 text-sand-dim opacity-30 cursor-default border-r border-sand/5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">TA</span>
-        <span>–</span>
-      </span>
-    );
+    return <NotFoundSegment label="TA" variant={variant} />;
   }
 
   return (
-    <SegmentButton color="#4ade80" label="TA" value="?" onClick={handleFetch} loading={isLoading} />
+    <SegmentButton color="var(--color-ta)" label="TA" value="?" onClick={handleFetch} loading={isLoading} variant={variant} />
   );
 }
 
-function WakacjeSegment({ offer }: { offer: Offer }) {
+function WakacjeSegment({ offer, variant }: { offer: Offer; variant: RatingBarVariant }) {
   if (!offer.ratingValue) {
-    return (
-      <span className="flex-1 flex items-center justify-center gap-1 py-2 text-sand-dim opacity-30 cursor-default">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">W</span>
-        <span>–</span>
-      </span>
-    );
+    return <NotFoundSegment label="W" variant={variant} lastSegment />;
   }
 
   return (
     <SegmentButton
-      color="#d4a843"
+      color="var(--color-gold)"
       label="W"
       value={offer.ratingValue.toFixed(1)}
       count={abbreviateCount(offer.ratingReservationCount)}
+      variant={variant}
     />
+  );
+}
+
+function NotFoundSegment({
+  label,
+  variant,
+  lastSegment,
+}: {
+  label: string;
+  variant: RatingBarVariant;
+  lastSegment?: boolean;
+}) {
+  const isOverlay = variant === "overlay";
+  return (
+    <span
+      className={`flex-1 flex items-center justify-center gap-1 py-2 cursor-default ${
+        isOverlay
+          ? `text-white/30 ${lastSegment ? "" : "border-r border-white/5"}`
+          : `text-sand-dim/40 ${lastSegment ? "" : "border-r border-sand/8"}`
+      }`}
+    >
+      <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">{label}</span>
+      <span>–</span>
+    </span>
   );
 }
 
@@ -227,6 +251,7 @@ function SegmentButton({
   count,
   onClick,
   loading,
+  variant,
 }: {
   color: string;
   label: string;
@@ -234,14 +259,22 @@ function SegmentButton({
   count?: string;
   onClick?: () => void;
   loading?: boolean;
+  variant: RatingBarVariant;
 }) {
+  const isOverlay = variant === "overlay";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick || loading}
-      className={`flex-1 flex items-center justify-center gap-1 py-2 text-sand-dim transition-all border-r border-sand/5 last:border-r-0 ${
-        loading ? "animate-pulse cursor-default" : onClick ? "hover:bg-white/5 hover:text-sand-bright" : "cursor-default"
+      className={`flex-1 flex items-center justify-center gap-1 py-2 transition-all last:border-r-0 ${
+        isOverlay
+          ? `text-white/70 border-r border-white/5 ${
+              loading ? "animate-pulse cursor-default" : onClick ? "hover:bg-white/5 hover:text-white/90" : "cursor-default"
+            }`
+          : `text-sand-dim border-r border-sand/8 ${
+              loading ? "animate-pulse cursor-default" : onClick ? "hover:bg-sand/6 hover:text-sand-bright" : "cursor-default"
+            }`
       }`}
     >
       <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-65">{label}</span>

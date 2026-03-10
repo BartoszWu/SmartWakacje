@@ -5,7 +5,6 @@ import type {
   TrivagoCacheEntry,
   GoogleSearchResult,
   TASearchResult,
-  TrivagoSearchResult,
 } from "@smartwakacje/shared";
 import {
   loadGoogleCache,
@@ -21,13 +20,35 @@ import { searchTrivago } from "./trivago";
 
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 500;
+const RETRY_DELAY_MS = 5000;
+const BATCH_TIMEOUT_MS = 45_000; // hard limit per batch (3× single request timeout)
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} batch timeout (${ms / 1000}s)`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 interface UniqueHotel {
   name: string;
   city: string;
   country: string;
+}
+
+export interface EnrichFailure {
+  name: string;
+  error: string;
+}
+
+export interface EnrichResult {
+  offers: Offer[];
+  failures: { phase: string; hotels: EnrichFailure[] }[];
 }
 
 function getUniqueHotels(offers: Offer[]): UniqueHotel[] {
@@ -83,136 +104,205 @@ function applyTARating(offer: Offer, entry: TACacheEntry): void {
 
 export type EnrichProgress = (phase: string, done: number, total: number) => void;
 
+// ── Generic batch fetcher with retry pass ──
+
+interface BatchPhaseOpts<TCache> {
+  label: string;
+  hotels: UniqueHotel[];
+  cache: Record<string, TCache>;
+  saveCache: (c: Record<string, TCache>) => Promise<void>;
+  fetchOne: (h: UniqueHotel) => Promise<TCache>;
+  batchSize: number;
+  batchDelay: number;
+  onProgress?: EnrichProgress;
+}
+
+async function fetchPhaseWithRetry<TCache>(opts: BatchPhaseOpts<TCache>): Promise<EnrichFailure[]> {
+  const { label, hotels, cache, saveCache: save, fetchOne, batchSize, batchDelay, onProgress } = opts;
+
+  const missing = hotels.filter((h) => !cache[h.name]);
+  if (missing.length === 0) {
+    onProgress?.(label, 0, 0);
+    return [];
+  }
+
+  let processed = 0;
+  const failed: { hotel: UniqueHotel; error: string }[] = [];
+
+  // ── Pass 1 ──
+  let consecutiveFailures = 0;
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const batch = missing.slice(i, i + batchSize);
+    const results = await withTimeout(
+      Promise.allSettled(batch.map((h) => fetchOne(h))),
+      BATCH_TIMEOUT_MS,
+      label,
+    ).catch((err) =>
+      // If entire batch timed out, mark all as rejected
+      batch.map(() => ({ status: "rejected" as const, reason: err }))
+    );
+
+    let batchFails = 0;
+    for (let j = 0; j < batch.length; j++) {
+      const h = batch[j];
+      const r = results[j];
+      processed++;
+      if (r.status === "rejected") {
+        const msg = r.reason?.message ?? String(r.reason);
+        console.log(`  [${label}] ${processed}/${missing.length} ${h.name} \u274c ${msg}`);
+        failed.push({ hotel: h, error: msg });
+        batchFails++;
+      } else {
+        cache[h.name] = r.value;
+        const entry = r.value as { results?: unknown[] };
+        const ok = entry.results && (entry.results as unknown[]).length > 0;
+        if (ok) {
+          console.log(`  [${label}] ${processed}/${missing.length} ${h.name} \u2705`);
+        } else {
+          console.log(`  [${label}] ${processed}/${missing.length} ${h.name} \u2014 no results`);
+        }
+      }
+    }
+
+    await save(cache);
+    onProgress?.(label, processed, missing.length);
+
+    // Dynamic backoff: increase delay when consecutive batches have failures
+    if (batchFails > 0) {
+      consecutiveFailures++;
+    } else {
+      consecutiveFailures = 0;
+    }
+
+    if (i + batchSize < missing.length) {
+      const backoff = Math.min(batchDelay * Math.pow(2, consecutiveFailures), 10_000);
+      if (consecutiveFailures > 0) {
+        console.log(`  [${label}] backoff ${backoff}ms (${consecutiveFailures} consecutive failed batches)`);
+      }
+      await sleep(backoff);
+    }
+  }
+
+  // ── Pass 2: retry failed ──
+  if (failed.length > 0) {
+    console.log(`  [${label}] Retrying ${failed.length} failed hotel(s) in ${RETRY_DELAY_MS / 1000}s...`);
+    await sleep(RETRY_DELAY_MS);
+
+    const stillFailed: EnrichFailure[] = [];
+    for (let i = 0; i < failed.length; i++) {
+      const { hotel } = failed[i];
+      try {
+        const val = await fetchOne(hotel);
+        cache[hotel.name] = val;
+        console.log(`  [${label}] retry ${i + 1}/${failed.length} ${hotel.name} \u2705`);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.log(`  [${label}] retry ${i + 1}/${failed.length} ${hotel.name} \u274c ${msg}`);
+        stillFailed.push({ name: hotel.name, error: msg });
+      }
+      if (i < failed.length - 1) await sleep(1000);
+    }
+
+    await save(cache);
+    return stillFailed;
+  }
+
+  return [];
+}
+
 export async function enrichOffers(
   offers: Offer[],
-  onProgress?: EnrichProgress
-): Promise<Offer[]> {
-  const hotels = getUniqueHotels(offers);
+  onProgress?: EnrichProgress,
+  /** If provided, only enrich these specific hotel names (for retry) */
+  onlyHotels?: Set<string>,
+): Promise<EnrichResult> {
+  const allHotels = getUniqueHotels(offers);
+  const hotels = onlyHotels
+    ? allHotels.filter((h) => onlyHotels.has(h.name))
+    : allHotels;
   const googleCache = await loadGoogleCache();
   const trivagoCache = await loadTrivagoCache();
 
   const hasGoogleKey = !!process.env.GOOGLE_MAPS_API_KEY;
   const hasTAKey = !!process.env.TRIPADVISOR_API_KEY;
 
-  let taCache: Record<string, TACacheEntry> = {};
-  if (hasTAKey) taCache = await loadTACache();
+  const taCache: Record<string, TACacheEntry> = hasTAKey ? await loadTACache() : {};
 
-  // ── Phase 1: fetch missing from Google ──
-  const googleMissing = hotels.filter((h) => !googleCache[h.name]);
-  if (hasGoogleKey && googleMissing.length > 0) {
-    for (let i = 0; i < googleMissing.length; i += BATCH_SIZE) {
-      const batch = googleMissing.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(
-        batch.map((h) => searchGoogle(h.name, h.city, h.country))
-      );
+  const allFailures: { phase: string; hotels: EnrichFailure[] }[] = [];
 
-      for (let j = 0; j < batch.length; j++) {
-        const h = batch[j];
-        const r = results[j];
-        if (r.status === "rejected") {
-          console.warn(`  [Google] FAIL "${h.name}": ${r.reason?.message ?? r.reason}`);
-          continue;
-        }
-        const searchResults: GoogleSearchResult[] = r.value;
-        googleCache[h.name] = {
-          results: searchResults,
-          selected: searchResults.length === 1 ? 0 : null,
-          fetchedAt: new Date().toISOString(),
-        };
-      }
+  // ── Phases 1-3: fetch all providers in parallel ──
+  const phases: Promise<{ phase: string; failures: EnrichFailure[] }>[] = [];
 
-      await saveGoogleCache(googleCache);
-      onProgress?.("Google Maps", Math.min(i + BATCH_SIZE, googleMissing.length), googleMissing.length);
-      if (i + BATCH_SIZE < googleMissing.length) await sleep(BATCH_DELAY_MS);
-    }
-  }
-
-  // ── Phase 2: fetch missing from Trivago ──
-  const TRIVAGO_BATCH = 2;
-  const TRIVAGO_DELAY = 2000;
-  const trivagoMissing = hotels.filter((h) => !trivagoCache[h.name]);
-  if (trivagoMissing.length > 0) {
-    console.log(`  [Trivago] ${trivagoMissing.length} hotels to fetch (batch=${TRIVAGO_BATCH}, delay=${TRIVAGO_DELAY}ms)`);
-    for (let i = 0; i < trivagoMissing.length; i += TRIVAGO_BATCH) {
-      const batch = trivagoMissing.slice(i, i + TRIVAGO_BATCH);
-      console.log(`  [Trivago] batch ${i}-${i + batch.length}: ${batch.map(h => h.name).join(", ")}`);
-      const results = await Promise.allSettled(
-        batch.map((h) => searchTrivago(h.name))
-      );
-
-      const retries: UniqueHotel[] = [];
-      for (let j = 0; j < batch.length; j++) {
-        const h = batch[j];
-        const r = results[j];
-        if (r.status === "rejected") {
-          console.warn(`  [Trivago] FAIL "${h.name}": ${r.reason?.message ?? r.reason}`);
-          retries.push(h);
-          continue;
-        }
-        trivagoCache[h.name] = {
-          results: r.value,
-          selected: r.value.length === 1 ? 0 : null,
-          fetchedAt: new Date().toISOString(),
-        };
-      }
-
-      if (retries.length > 0) {
-        console.log(`  [Trivago] retrying ${retries.length} failed hotel(s) after 3s...`);
-        await sleep(3000);
-        for (const hotel of retries) {
-          try {
-            const val = await searchTrivago(hotel.name);
-            trivagoCache[hotel.name] = {
-              results: val,
-              selected: val.length === 1 ? 0 : null,
-              fetchedAt: new Date().toISOString(),
-            };
-            console.log(`  [Trivago] retry OK "${hotel.name}"`);
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.warn(`  [Trivago] retry FAIL "${hotel.name}": ${msg} (skipping, will retry next run)`);
-          }
-          await sleep(1000);
-        }
-      }
-
-      await saveTrivagoCache(trivagoCache);
-      onProgress?.("Trivago", Math.min(i + TRIVAGO_BATCH, trivagoMissing.length), trivagoMissing.length);
-      if (i + TRIVAGO_BATCH < trivagoMissing.length) await sleep(TRIVAGO_DELAY);
-    }
-  }
-
-  // ── Phase 3: fetch missing from TripAdvisor ──
-  if (hasTAKey) {
-    const taMissing = hotels.filter((h) => !taCache[h.name]);
-    if (taMissing.length > 0) {
-      const TA_BATCH = 2;
-      const TA_DELAY = 1000;
-      for (let i = 0; i < taMissing.length; i += TA_BATCH) {
-        const batch = taMissing.slice(i, i + TA_BATCH);
-        const results = await Promise.allSettled(
-          batch.map((h) => searchTA(h.name, h.city, h.country))
-        );
-
-        for (let j = 0; j < batch.length; j++) {
-          const h = batch[j];
-          const r = results[j];
-          if (r.status === "rejected") {
-            console.warn(`  [TA] FAIL "${h.name}": ${r.reason?.message ?? r.reason}`);
-            continue;
-          }
-          const searchResults: TASearchResult[] = r.value;
-          taCache[h.name] = {
-            results: searchResults,
-            selected: searchResults.length === 1 ? 0 : null,
+  if (hasGoogleKey) {
+    phases.push(
+      fetchPhaseWithRetry<GoogleCacheEntry>({
+        label: "Google Maps",
+        hotels,
+        cache: googleCache,
+        saveCache: saveGoogleCache,
+        fetchOne: async (h) => {
+          const results: GoogleSearchResult[] = await searchGoogle(h.name, h.city, h.country);
+          return {
+            results,
+            selected: results.length === 1 ? 0 : null,
             fetchedAt: new Date().toISOString(),
           };
-        }
+        },
+        batchSize: BATCH_SIZE,
+        batchDelay: BATCH_DELAY_MS,
+        onProgress,
+      }).then((failures) => ({ phase: "Google Maps", failures })),
+    );
+  }
 
-        await saveTACache(taCache);
-        onProgress?.("TripAdvisor", Math.min(i + TA_BATCH, taMissing.length), taMissing.length);
-        if (i + TA_BATCH < taMissing.length) await sleep(TA_DELAY);
-      }
+  phases.push(
+    fetchPhaseWithRetry<TrivagoCacheEntry>({
+      label: "Trivago",
+      hotels,
+      cache: trivagoCache,
+      saveCache: saveTrivagoCache,
+      fetchOne: async (h) => {
+        const results = await searchTrivago(h.name);
+        return {
+          results,
+          selected: results.length === 1 ? 0 : null,
+          fetchedAt: new Date().toISOString(),
+        };
+      },
+      batchSize: 2,
+      batchDelay: 2000,
+      onProgress,
+    }).then((failures) => ({ phase: "Trivago", failures })),
+  );
+
+  if (hasTAKey) {
+    phases.push(
+      fetchPhaseWithRetry<TACacheEntry>({
+        label: "TripAdvisor",
+        hotels,
+        cache: taCache,
+        saveCache: saveTACache,
+        fetchOne: async (h) => {
+          const results: TASearchResult[] = await searchTA(h.name, h.city, h.country);
+          return {
+            results,
+            selected: results.length === 1 ? 0 : null,
+            fetchedAt: new Date().toISOString(),
+          };
+        },
+        batchSize: 2,
+        batchDelay: 1000,
+        onProgress,
+      }).then((failures) => ({ phase: "TripAdvisor", failures })),
+    );
+  }
+
+  const phaseResults = await Promise.allSettled(phases);
+  for (const result of phaseResults) {
+    if (result.status === "fulfilled" && result.value.failures.length > 0) {
+      allFailures.push({ phase: result.value.phase, hotels: result.value.failures });
+    } else if (result.status === "rejected") {
+      console.error("Enrichment phase failed entirely:", result.reason);
     }
   }
 
@@ -230,5 +320,16 @@ export async function enrichOffers(
     }
   }
 
-  return offers;
+  // ── Summary ──
+  if (allFailures.length > 0) {
+    console.log("\n  === Enrichment failures ===");
+    for (const f of allFailures) {
+      console.log(`  [${f.phase}] ${f.hotels.length} failed:`);
+      for (const h of f.hotels) {
+        console.log(`    - ${h.name}: ${h.error}`);
+      }
+    }
+  }
+
+  return { offers, failures: allFailures };
 }

@@ -14,18 +14,18 @@ export const AIRPORT_IDS: Record<string, number> = {
 export const COUNTRY_IDS: Record<string, number> = {
 	Tunezja: 65,
 	Turcja: 16,
-	Egipt: 8,
-	Grecja: 12,
-	Hiszpania: 7,
-	Chorwacja: 55,
-	Bułgaria: 53,
-	Cypr: 29,
-	Maroko: 60,
-	Portugalia: 41,
-	Włochy: 13,
-	Czarnogóra: 84,
-	Albania: 95,
-	Malta: 48,
+	Egipt: 37,
+	Grecja: 29,
+	Hiszpania: 33,
+	Chorwacja: 32,
+	Bułgaria: 305,
+	Cypr: 110,
+	Maroko: 44,
+	Portugalia: 74,
+	Włochy: 31,
+	Czarnogóra: 283,
+	Albania: 436,
+	Malta: 99,
 };
 
 export const SERVICE_TYPES: Record<string, number> = {
@@ -61,4 +61,6 @@ export const DEFAULT_SCRAPER_CONFIG = {
 	attributes: [29],
 	pageSize: 50,
 	delayBetweenPages: 1000,
+	minPrice: 8000,
+	maxPrice: 14000,
 } as const;

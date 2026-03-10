@@ -51,7 +51,7 @@ export function Controls() {
           placeholder="Szukaj hotelu..."
           value={filters.search}
           onChange={(e) => setFilter("search", e.target.value)}
-          className="w-full py-2 pl-9 pr-4 rounded-full border border-sand/10 bg-white/5 text-sand-bright text-sm outline-none focus:border-accent transition-colors"
+          className="w-full py-2 pl-9 pr-4 rounded-full border border-sand/10 bg-bg-raised text-sand-bright text-sm outline-none focus:border-accent transition-colors"
         />
       </div>
 
@@ -64,7 +64,7 @@ export function Controls() {
           onChange={(e) => setSort({ primary: e.target.value as typeof sort.primary })}
           title="Sortowanie główne"
           aria-label="Sortowanie główne"
-          className="py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
+          className="py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
         >
           <option value="qualityScore">Jakość (score)</option>
           <option value="valueScore">Value (jakość/cena)</option>
@@ -93,7 +93,7 @@ export function Controls() {
           onChange={(e) => setSort({ secondary: e.target.value as typeof sort.secondary })}
           title="Sortowanie drugorzędne"
           aria-label="Sortowanie drugorzędne"
-          className="py-2 px-3 rounded border border-sand/10 bg-white/5 text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
+          className="py-2 px-3 rounded border border-sand/10 bg-bg-raised text-sand-bright text-sm font-medium outline-none cursor-pointer focus:border-accent transition-colors appearance-none bg-no-repeat bg-right pr-6"
         >
           <option value="qualityScore">Jakość (score)</option>
           <option value="valueScore">Value (jakość/cena)</option>

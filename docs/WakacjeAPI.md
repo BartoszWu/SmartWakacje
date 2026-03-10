@@ -181,12 +181,20 @@ Photo URLs are relative — prefix with `https://www.wakacje.pl`.
 
 | ID | Name |
 |----|------|
-| 1 | Egipt |
-| 2 | Grecja |
-| 6 | Chorwacja |
 | 16 | Turcja |
-| 17 | Hiszpania |
+| 29 | Grecja |
+| 31 | Włochy |
+| 32 | Chorwacja |
+| 33 | Hiszpania |
+| 37 | Egipt |
+| 44 | Maroko |
 | 65 | Tunezja |
+| 74 | Portugalia |
+| 99 | Malta |
+| 110 | Cypr |
+| 283 | Czarnogóra |
+| 305 | Bułgaria |
+| 436 | Albania |
 
 ### Departure airports (`departure`)
 

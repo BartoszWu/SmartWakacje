@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta } from "@smartwakacje/shared";
 
 type View = "home" | "offers" | "offerDetail";
+type Theme = "dark" | "light";
 
 /* ── URL helpers ─────────────────────────────────── */
 export function offerSlug(name: string): string {
@@ -34,6 +35,10 @@ export function parseRoute(pathname: string): ParsedRoute {
 }
 
 interface StoreState {
+  // Theme
+  theme: Theme;
+  toggleTheme: () => void;
+
   // Navigation
   view: View;
   activeSnapshotId: string | null;
@@ -95,7 +100,37 @@ const initialSort: SortConfig = {
   secondaryDir: "asc",
 };
 
+function getInitialTheme(): Theme {
+  try {
+    const stored = localStorage.getItem("sw-theme");
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {}
+  return "dark";
+}
+
+function applyThemeToDOM(theme: Theme) {
+  const html = document.documentElement;
+  if (theme === "light") {
+    html.classList.add("light");
+  } else {
+    html.classList.remove("light");
+  }
+}
+
+// Apply initial theme immediately (before React renders)
+const _initialTheme = getInitialTheme();
+applyThemeToDOM(_initialTheme);
+
 export const useStore = create<StoreState>((set, get) => ({
+  // Theme
+  theme: _initialTheme,
+  toggleTheme: () => {
+    const next = get().theme === "dark" ? "light" : "dark";
+    applyThemeToDOM(next);
+    try { localStorage.setItem("sw-theme", next); } catch {}
+    set({ theme: next });
+  },
+
   // Navigation
   view: "home",
   activeSnapshotId: null,

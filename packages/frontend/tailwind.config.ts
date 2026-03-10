@@ -1,23 +1,27 @@
 import type { Config } from "tailwindcss";
 
+function rgb(varName: string) {
+  return `rgb(var(${varName}) / <alpha-value>)`;
+}
+
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "#141416",
-        "bg-raised": "#1e1e22",
-        "bg-card": "#222226",
-        "bg-card-hover": "#2a2a2f",
-        sand: "#e8dcc8",
-        "sand-dim": "#a89b88",
-        "sand-bright": "#f5efe4",
-        accent: "#d4621a",
-        "accent-glow": "#e8782f",
-        green: "#4caf6a",
-        red: "#cf4444",
-        gold: "#d4a843",
-        blue: "#4a8ec9",
+        bg: rgb("--color-bg"),
+        "bg-raised": rgb("--color-bg-raised"),
+        "bg-card": rgb("--color-bg-card"),
+        "bg-card-hover": rgb("--color-bg-card-hover"),
+        sand: rgb("--color-sand"),
+        "sand-dim": rgb("--color-sand-dim"),
+        "sand-bright": rgb("--color-sand-bright"),
+        accent: rgb("--color-accent"),
+        "accent-glow": rgb("--color-accent-glow"),
+        green: rgb("--color-green"),
+        red: rgb("--color-red"),
+        gold: rgb("--color-gold"),
+        blue: rgb("--color-blue"),
       },
       fontFamily: {
         display: ['"DM Serif Display"', "Georgia", "serif"],
@@ -28,8 +32,8 @@ export default {
         sm: "6px",
       },
       boxShadow: {
-        DEFAULT: "0 4px 24px rgba(0,0,0,.45)",
-        lg: "0 12px 48px rgba(0,0,0,.6)",
+        DEFAULT: "var(--shadow-default)",
+        lg: "var(--shadow-lg)",
       },
       animation: {
         "card-in": "cardIn 0.55s cubic-bezier(.22,1,.36,1) forwards",

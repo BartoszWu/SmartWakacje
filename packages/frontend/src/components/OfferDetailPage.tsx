@@ -1,7 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
-import { useStore, buildSnapshotPath } from "../store/useStore";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useStore } from "../store/useStore";
 import { trpc } from "../trpc";
 import { formatDate } from "@smartwakacje/shared";
+
+/** Read current CSS variable values for Recharts (which needs raw color strings). */
+function useChartTheme() {
+  const theme = useStore((s) => s.theme);
+  return useMemo(() => {
+    const s = getComputedStyle(document.documentElement);
+    const v = (name: string) => s.getPropertyValue(name).trim();
+    /** RGB-channel vars need wrapping in rgb() */
+    const c = (name: string) => `rgb(${v(name)})`;
+    return {
+      bg: c("--color-bg"),
+      accent: c("--color-accent"),
+      accentGlow: c("--color-accent-glow"),
+      sandDim: c("--color-sand-dim"),
+      chartGrid: v("--color-chart-grid"),
+      chartAxisLine: v("--color-chart-axis-line"),
+      chartCursor: v("--color-chart-cursor"),
+      chartRefLine: v("--color-chart-ref-line"),
+      gradientTop: v("--color-gradient-area-top"),
+      gradientMid: v("--color-gradient-area-mid"),
+      gradientBot: v("--color-gradient-area-bot"),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme]);
+}
 import {
   AreaChart,
   Area,
@@ -132,14 +157,16 @@ function CustomDot(props: {
   cy?: number;
   index?: number;
   payload?: ChartPoint;
+  bgColor?: string;
+  accentColor?: string;
 }) {
-  const { cx, cy } = props;
+  const { cx, cy, bgColor = "rgb(var(--color-bg))", accentColor = "rgb(var(--color-accent))" } = props;
   if (cx == null || cy == null) return null;
 
   return (
     <g>
-      <circle cx={cx} cy={cy} r={6} fill="#141416" stroke="#d4621a" strokeWidth={2.5} />
-      <circle cx={cx} cy={cy} r={2.5} fill="#d4621a" />
+      <circle cx={cx} cy={cy} r={6} fill={bgColor} stroke={accentColor} strokeWidth={2.5} />
+      <circle cx={cx} cy={cy} r={2.5} fill={accentColor} />
     </g>
   );
 }
@@ -153,6 +180,8 @@ function PriceChart({
   minPrice: number;
   maxPrice: number;
 }) {
+  const ct = useChartTheme();
+
   if (points.length < 2) {
     return (
       <div className="flex items-center justify-center h-64 text-sand-dim font-body text-sm">
@@ -196,31 +225,31 @@ function PriceChart({
         >
           <defs>
             <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d4621a" stopOpacity={0.35} />
-              <stop offset="50%" stopColor="#d4621a" stopOpacity={0.12} />
-              <stop offset="100%" stopColor="#d4621a" stopOpacity={0.02} />
+              <stop offset="0%" stopColor={ct.gradientTop} stopOpacity={1} />
+              <stop offset="50%" stopColor={ct.gradientMid} stopOpacity={1} />
+              <stop offset="100%" stopColor={ct.gradientBot} stopOpacity={1} />
             </linearGradient>
             <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#d4621a" stopOpacity={0.6} />
-              <stop offset="50%" stopColor="#e8782f" stopOpacity={1} />
-              <stop offset="100%" stopColor="#d4621a" stopOpacity={0.6} />
+              <stop offset="0%" stopColor={ct.accent} stopOpacity={0.6} />
+              <stop offset="50%" stopColor={ct.accentGlow} stopOpacity={1} />
+              <stop offset="100%" stopColor={ct.accent} stopOpacity={0.6} />
             </linearGradient>
           </defs>
           <CartesianGrid
             strokeDasharray="3 6"
-            stroke="rgba(232,220,200,0.04)"
+            stroke={ct.chartGrid}
             vertical={false}
           />
           <XAxis
             dataKey="dateLabel"
-            tick={{ fill: "#a89b88", fontSize: 11, fontFamily: "Libre Franklin" }}
-            axisLine={{ stroke: "rgba(232,220,200,0.06)" }}
+            tick={{ fill: ct.sandDim, fontSize: 11, fontFamily: "Libre Franklin" }}
+            axisLine={{ stroke: ct.chartAxisLine }}
             tickLine={false}
             dy={8}
           />
           <YAxis
             domain={[yMin, yMax]}
-            tick={{ fill: "#a89b88", fontSize: 11, fontFamily: "Libre Franklin" }}
+            tick={{ fill: ct.sandDim, fontSize: 11, fontFamily: "Libre Franklin" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}k`}
@@ -229,19 +258,19 @@ function PriceChart({
           <Tooltip
             content={<CustomTooltip />}
             cursor={{
-              stroke: "rgba(232,220,200,0.1)",
+              stroke: ct.chartCursor,
               strokeWidth: 1,
               strokeDasharray: "4 4",
             }}
           />
           <ReferenceLine
             y={avgPrice}
-            stroke="rgba(232,220,200,0.08)"
+            stroke={ct.chartRefLine}
             strokeDasharray="8 4"
             label={{
               value: `sr. ${avgPrice.toLocaleString("pl")}`,
               position: "right",
-              fill: "#a89b88",
+              fill: ct.sandDim,
               fontSize: 10,
               fontFamily: "Libre Franklin",
             }}
@@ -252,11 +281,11 @@ function PriceChart({
             stroke="url(#lineGradient)"
             strokeWidth={2.5}
             fill="url(#priceGradient)"
-            dot={<CustomDot />}
+            dot={<CustomDot bgColor={ct.bg} accentColor={ct.accent} />}
             activeDot={{
               r: 7,
-              fill: "#e8782f",
-              stroke: "#141416",
+              fill: ct.accentGlow,
+              stroke: ct.bg,
               strokeWidth: 3,
             }}
             animationDuration={1200}
@@ -397,26 +426,24 @@ function Lightbox({
   );
 }
 
-/* ── Photo Gallery ─────────────────────────────────── */
+/* ── Photo Gallery (compact: 4-6 visible + "+N" overlay) ── */
 function GalleryThumb({
   url,
   index,
   onClick,
-  featured,
+  overlay,
 }: {
   url: string;
   index: number;
   onClick: () => void;
-  featured?: boolean;
+  overlay?: number;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative rounded-sm overflow-hidden border border-sand/5 hover:border-sand/20 transition-all group focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none opacity-0 ${
-        featured ? "col-span-2 row-span-2 aspect-[4/3]" : "aspect-[4/3]"
-      }`}
-      style={{ animation: `galleryThumbIn 0.4s cubic-bezier(.22,1,.36,1) ${200 + index * 40}ms forwards` }}
+      className="relative rounded-sm overflow-hidden border border-sand/5 hover:border-sand/20 transition-all group focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none opacity-0 aspect-[4/3] h-full w-full"
+      style={{ animation: `galleryThumbIn 0.4s cubic-bezier(.22,1,.36,1) ${200 + index * 50}ms forwards` }}
     >
       <img
         src={url}
@@ -424,25 +451,35 @@ function GalleryThumb({
         loading="lazy"
         className="w-full h-full object-cover transition-transform duration-400 group-hover:scale-[1.06]"
       />
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-white drop-shadow-lg">
-          <title>Powieksz</title>
-          <circle cx="11" cy="11" r="8" />
-          <path d="M21 21l-4.35-4.35M11 8v6M8 11h6" />
-        </svg>
-      </div>
+      {overlay ? (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+          <span className="font-display text-2xl text-white">+{overlay}</span>
+        </div>
+      ) : (
+        <>
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6 text-white drop-shadow-lg">
+              <title>Powieksz</title>
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35M11 8v6M8 11h6" />
+            </svg>
+          </div>
+        </>
+      )}
     </button>
   );
 }
 
+/** Shows all photos as a grid gallery. First photo is larger (featured). */
 function PhotoGallery({ photos }: { photos: string[] }) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
-  // Hide gallery when <=1 photo — the hero already shows it
-  if (photos.length <= 1) return null;
+  if (photos.length === 0) return null;
 
-  const hasFeatured = photos.length >= 5;
+  const MAX_VISIBLE = 8;
+  const visible = photos.slice(0, MAX_VISIBLE);
+  const overflow = photos.length - MAX_VISIBLE;
 
   return (
     <>
@@ -450,24 +487,31 @@ function PhotoGallery({ photos }: { photos: string[] }) {
         className="opacity-0"
         style={{ animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.3s forwards" }}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-xl text-sand-bright">Galeria</h2>
           <span className="text-xs text-sand-dim font-medium">{photos.length} zdjec</span>
         </div>
-        <div className="bg-bg-card border border-sand/5 rounded-sm p-3 md:p-4">
-          <div className={`grid gap-2 max-h-[28rem] overflow-y-auto pr-1 ${
-            hasFeatured ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
-          }`}>
-            {photos.map((url, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {/* Featured: first photo spans 2 cols + 2 rows */}
+          <div className="col-span-2 row-span-2">
+            <GalleryThumb
+              url={photos[0]}
+              index={0}
+              onClick={() => setLightboxIdx(0)}
+            />
+          </div>
+          {visible.slice(1).map((url, i) => {
+            const isLast = i === visible.length - 2 && overflow > 0;
+            return (
               <GalleryThumb
                 key={url}
                 url={url}
-                index={i}
-                onClick={() => setLightboxIdx(i)}
-                featured={hasFeatured && i === 0}
+                index={i + 1}
+                onClick={() => setLightboxIdx(isLast ? i + 1 : i + 1)}
+                overlay={isLast ? overflow : undefined}
               />
-            ))}
-          </div>
+            );
+          })}
         </div>
       </section>
 
@@ -489,11 +533,13 @@ function GoogleMapEmbed({
   hotelName,
   city,
   country,
+  tall,
 }: {
   placeId?: string;
   hotelName: string;
   city: string;
   country: string;
+  tall?: boolean;
 }) {
   if (!GMAPS_API_KEY) return null;
 
@@ -510,7 +556,7 @@ function GoogleMapEmbed({
         animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.35s forwards",
       }}
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h2 className="font-display text-xl text-sand-bright">Lokalizacja</h2>
         {placeId && (
           <a
@@ -519,14 +565,14 @@ function GoogleMapEmbed({
             rel="noopener noreferrer"
             className="text-xs text-sand-dim hover:text-accent transition-colors font-medium inline-flex items-center gap-1"
           >
-            Otworz w Google Maps
+            Google Maps
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
               <path d="M7 17L17 7M17 7H7M17 7v10" />
             </svg>
           </a>
         )}
       </div>
-      <div className="bg-bg-card border border-sand/5 rounded-sm overflow-hidden h-[350px]">
+      <div className={`bg-bg-card border border-sand/5 rounded-sm overflow-hidden ${tall ? "h-[450px]" : "h-[350px]"}`}>
         <iframe
           title="Lokalizacja hotelu"
           src={src}
@@ -542,8 +588,6 @@ function GoogleMapEmbed({
 
 export function OfferDetailPage() {
   const offer = useStore((s) => s.activeOffer);
-  const goBack = useStore((s) => s.goBackToOffers);
-  const snapshotId = useStore((s) => s.activeSnapshotId);
 
   // @ts-expect-error - tRPC type inference issue with monorepo
   const { data: history, isLoading } = trpc.offers.priceHistory.useQuery(
@@ -566,280 +610,256 @@ export function OfferDetailPage() {
 
   const allPhotos = offer.photos?.length ? offer.photos : offer.photo ? [offer.photo] : [];
 
-  const photoUrl =
-    offer.photo ||
-    `https://placehold.co/800x400/1e1e22/a89b88?text=${encodeURIComponent(
+  const heroPhoto =
+    allPhotos[0] ||
+    `https://placehold.co/1200x500/1e1e22/a89b88?text=${encodeURIComponent(
       offer.name.slice(0, 12)
     )}`;
 
   return (
     <div className="min-h-screen bg-bg text-sand font-body relative">
-      {/* ── Hero ─────────────────────────────────────────── */}
-      <div className="relative h-72 md:h-80 overflow-hidden">
-        <img
-          src={photoUrl}
-          alt={offer.name}
-          className="absolute inset-0 w-full h-full object-cover scale-105 blur-sm opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-bg/40 via-bg/60 to-bg" />
+      {/* ── Hero: contained image ──────────────────────── */}
+      <div className="max-w-6xl mx-auto px-6 md:px-8 pt-6">
+        <div className="relative h-[380px] md:h-[420px] overflow-hidden rounded-sm">
+          <img
+            src={heroPhoto}
+            alt={offer.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          {/* gradient overlay — heavier at bottom for text legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-        <div className="relative z-10 max-w-5xl mx-auto px-6 md:px-8 h-full flex flex-col justify-end pb-8">
-          <a
-            href={snapshotId ? buildSnapshotPath(snapshotId) : "/"}
-            onClick={(e) => {
-              e.preventDefault();
-              goBack();
-            }}
-            className="absolute top-6 left-6 md:left-8 inline-flex items-center gap-1.5 text-sand-dim hover:text-accent transition-colors text-sm font-medium group no-underline"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="w-4 h-4 transition-transform group-hover:-translate-x-0.5"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Powrot do ofert
-          </a>
-
-          <div
-            className="opacity-0"
-            style={{
-              animation:
-                "heroReveal 0.6s cubic-bezier(.22,1,.36,1) 0.1s forwards",
-            }}
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <Stars count={offer.category} />
-              {offer.serviceDesc && (
-                <span className="px-2.5 py-0.5 rounded-full bg-sand/8 text-sand-dim text-[10px] font-bold uppercase tracking-wide border border-sand/5">
-                  {offer.serviceDesc}
-                </span>
-              )}
-              {offer.promoLastMinute && (
-                <span className="px-2.5 py-0.5 rounded-full bg-red/15 text-red text-[10px] font-bold uppercase tracking-wide border border-red/20">
-                  Last Minute
-                </span>
-              )}
-              {offer.promoFirstMinute && (
-                <span className="px-2.5 py-0.5 rounded-full bg-blue/15 text-blue text-[10px] font-bold uppercase tracking-wide border border-blue/20">
-                  First Minute
-                </span>
-              )}
-            </div>
-            <h1 className="font-display text-3xl md:text-4xl text-sand-bright leading-tight tracking-tight">
-              {offer.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-2 text-sm text-sand-dim">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="w-4 h-4 shrink-0"
+          {/* Hero content overlay */}
+          <div className="absolute inset-x-0 bottom-0 z-10 px-6 md:px-8 pb-6">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              {/* Left: name, stars, badges, location */}
+              <div
+                className="opacity-0 min-w-0 flex-1"
+                style={{
+                  animation:
+                    "heroReveal 0.6s cubic-bezier(.22,1,.36,1) 0.1s forwards",
+                }}
               >
-                <path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <circle cx="12" cy="11" r="3" />
-              </svg>
-              {offer.country} / {offer.region} / {offer.city}
+                <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+                  <Stars count={offer.category} />
+                  {offer.serviceDesc && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 text-[10px] font-bold uppercase tracking-wide border border-white/10 backdrop-blur-sm">
+                      {offer.serviceDesc}
+                    </span>
+                  )}
+                  {offer.promoLastMinute && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-red/30 text-red text-[10px] font-bold uppercase tracking-wide border border-red/30 backdrop-blur-sm">
+                      Last Minute
+                    </span>
+                  )}
+                  {offer.promoFirstMinute && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue/30 text-blue text-[10px] font-bold uppercase tracking-wide border border-blue/30 backdrop-blur-sm">
+                      First Minute
+                    </span>
+                  )}
+                </div>
+                <h1 className="font-display text-3xl md:text-4xl text-white leading-tight tracking-tight drop-shadow-lg">
+                  {offer.name}
+                </h1>
+                <div className="flex items-center gap-2 mt-1.5 text-sm text-white/70">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="w-4 h-4 shrink-0"
+                  >
+                    <path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <circle cx="12" cy="11" r="3" />
+                  </svg>
+                  {offer.country} / {offer.region} / {offer.city}
+                </div>
+              </div>
+
+              {/* Right: price block */}
+              <div
+                className="opacity-0 shrink-0 text-right md:text-right"
+                style={{
+                  animation:
+                    "heroReveal 0.6s cubic-bezier(.22,1,.36,1) 0.2s forwards",
+                }}
+              >
+                <div className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-1">
+                  Aktualna cena
+                </div>
+                <div className="font-display text-4xl md:text-5xl text-white drop-shadow-lg leading-none">
+                  {offer.price.toLocaleString("pl")}
+                  <span className="text-lg text-white/50 ml-1">zl</span>
+                </div>
+                <div className="mt-1 flex items-center gap-3 justify-end">
+                  <span className="text-base font-semibold text-accent-glow">
+                    {offer.pricePerPerson.toLocaleString("pl")} zl
+                    <span className="text-xs text-white/50 ml-1">/ os</span>
+                  </span>
+                  {history && (
+                    <PriceChangeIndicator
+                      change={history.priceChange}
+                      changePercent={history.priceChangePercent}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Content ──────────────────────────────────────── */}
-      <div className="max-w-5xl mx-auto px-6 md:px-8 pb-16">
-        {/* Rating bar — override absolute positioning from RatingBar */}
+      {/* ── Info bar: rating + CTA ───────────────────────── */}
+      <div className="max-w-6xl mx-auto px-6 md:px-8">
         <div
-          className="relative -mt-5 mb-8 rounded-sm overflow-hidden border border-sand/5 opacity-0 [&>div]:static [&>div]:z-auto"
+          className="relative mt-4 mb-8 rounded-sm overflow-hidden border border-sand/8 opacity-0 flex items-center"
           style={{
             animation:
-              "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.25s forwards",
+              "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.3s forwards",
           }}
         >
-          <RatingBar offer={offer} />
-        </div>
-
-        {/* ── Photo gallery + Map ────────────────────────────── */}
-        {allPhotos.length > 1 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-            <div className="lg:col-span-3">
-              <PhotoGallery photos={allPhotos} />
-            </div>
-            <div className="lg:col-span-2">
-              <GoogleMapEmbed
-                placeId={offer.googlePlaceId}
-                hotelName={offer.name}
-                city={offer.city}
-                country={offer.country}
-              />
-            </div>
+          <div className="flex-1 min-w-0">
+            <RatingBar offer={offer} variant="standalone" />
           </div>
-        ) : (
-          <div className="mb-8">
+          <a
+            href={offer.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 mr-3 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-glow hover:scale-[1.03] transition-all"
+          >
+            Zobacz oferte
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="w-3.5 h-3.5"
+            >
+              <path d="M7 17L17 7M17 7H7M17 7v10" />
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      {/* ── Two-column body ──────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-6 md:px-8 pb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* ── Left column: gallery + chart + stats ──────── */}
+          <div className="lg:col-span-3 space-y-8">
+            {/* Photo gallery (compact thumbnails) */}
+            {allPhotos.length > 0 && <PhotoGallery photos={allPhotos} />}
+
+            {/* Chart section */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display text-xl text-sand-bright">
+                  Historia cen
+                </h2>
+                {chartPoints.length > 1 && (
+                  <span className="text-xs text-sand-dim">
+                    {chartPoints.length} wyszukiwan
+                  </span>
+                )}
+              </div>
+              <div className="bg-bg-card border border-sand/5 rounded-sm p-4 md:p-6">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="w-6 h-6 border-2 border-sand/15 border-t-accent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <PriceChart
+                    points={chartPoints}
+                    minPrice={history?.minPrice ?? offer.price}
+                    maxPrice={history?.maxPrice ?? offer.price}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Stats grid */}
+            {history && history.points?.length > 1 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard
+                  label="Minimum"
+                  value={`${history.minPrice.toLocaleString("pl")} zl`}
+                  sub={`${history.minPricePerPerson.toLocaleString("pl")} zl/os`}
+                  accent="text-green"
+                  delay={500}
+                />
+                <StatCard
+                  label="Maximum"
+                  value={`${history.maxPrice.toLocaleString("pl")} zl`}
+                  sub={`${history.maxPricePerPerson.toLocaleString("pl")} zl/os`}
+                  accent="text-red"
+                  delay={560}
+                />
+                <StatCard
+                  label="Srednia"
+                  value={`${Math.round(
+                    history.points.reduce(
+                      (s: number, p: { price: number }) => s + p.price,
+                      0
+                    ) / history.points.length
+                  ).toLocaleString("pl")} zl`}
+                  delay={620}
+                />
+                <StatCard
+                  label="Obserwacji"
+                  value={String(history.points.length)}
+                  sub={`${formatShortDate(history.points[0].date)} — ${formatShortDate(history.points[history.points.length - 1].date)}`}
+                  delay={680}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ── Right column: map + details ───────────────── */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Map (taller) */}
             <GoogleMapEmbed
               placeId={offer.googlePlaceId}
               hotelName={offer.name}
               city={offer.city}
               country={offer.country}
+              tall
             />
-          </div>
-        )}
 
-        {/* Price summary row */}
-        <div
-          className="flex flex-wrap items-end gap-6 mb-8 opacity-0"
-          style={{
-            animation:
-              "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.35s forwards",
-          }}
-        >
-          <div>
-            <div className="text-[10px] uppercase tracking-widest text-sand-dim font-bold mb-1">
-              Aktualna cena
-            </div>
-            <span className="font-display text-4xl md:text-5xl text-sand-bright">
-              {offer.price.toLocaleString("pl")}
-              <span className="text-lg text-sand-dim ml-1">zl</span>
-            </span>
-          </div>
-          <div className="mb-1">
-            <span className="text-lg font-semibold text-accent">
-              {offer.pricePerPerson.toLocaleString("pl")} zl
-              <span className="text-xs text-sand-dim ml-1">/ os</span>
-            </span>
-          </div>
-          {history && (
-            <div className="mb-2">
-              <PriceChangeIndicator
-                change={history.priceChange}
-                changePercent={history.priceChangePercent}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ── Chart section ──────────────────────────────── */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-xl text-sand-bright">
-              Historia cen
-            </h2>
-            {chartPoints.length > 1 && (
-              <span className="text-xs text-sand-dim">
-                {chartPoints.length} wyszukiwan
-              </span>
-            )}
-          </div>
-          <div className="bg-bg-card border border-sand/5 rounded-sm p-4 md:p-6">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="w-6 h-6 border-2 border-sand/15 border-t-accent rounded-full animate-spin" />
+            {/* Offer details */}
+            <section
+              className="opacity-0"
+              style={{
+                animation:
+                  "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.5s forwards",
+              }}
+            >
+              <h2 className="font-display text-xl text-sand-bright mb-3">
+                Szczegoly oferty
+              </h2>
+              <div className="bg-bg-card border border-sand/5 rounded-sm divide-y divide-sand/5">
+                <DetailRow label="Organizator" value={offer.tourOperator} />
+                <DetailRow
+                  label="Termin"
+                  value={`${formatDate(offer.departureDate)} — ${formatDate(offer.returnDate)}`}
+                />
+                <DetailRow label="Dlugosc" value={`${offer.duration} dni`} />
+                <DetailRow
+                  label="Polecenia"
+                  value={String(offer.ratingRecommends)}
+                />
+                <DetailRow
+                  label="Rezerwacje"
+                  value={String(offer.ratingReservationCount)}
+                />
+                {offer.employeeRatingCount > 0 && (
+                  <DetailRow
+                    label="Oceny pracownikow"
+                    value={String(offer.employeeRatingCount)}
+                  />
+                )}
               </div>
-            ) : (
-              <PriceChart
-                points={chartPoints}
-                minPrice={history?.minPrice ?? offer.price}
-                maxPrice={history?.maxPrice ?? offer.price}
-              />
-            )}
+            </section>
           </div>
-        </section>
-
-        {/* ── Stats grid ─────────────────────────────────── */}
-        {history && history.points?.length > 1 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-            <StatCard
-              label="Minimum"
-              value={`${history.minPrice.toLocaleString("pl")} zl`}
-              sub={`${history.minPricePerPerson.toLocaleString("pl")} zl/os`}
-              accent="text-green"
-              delay={500}
-            />
-            <StatCard
-              label="Maximum"
-              value={`${history.maxPrice.toLocaleString("pl")} zl`}
-              sub={`${history.maxPricePerPerson.toLocaleString("pl")} zl/os`}
-              accent="text-red"
-              delay={560}
-            />
-            <StatCard
-              label="Srednia"
-              value={`${Math.round(
-                history.points.reduce(
-                  (s: number, p: { price: number }) => s + p.price,
-                  0
-                ) / history.points.length
-              ).toLocaleString("pl")} zl`}
-              delay={620}
-            />
-            <StatCard
-              label="Obserwacji"
-              value={String(history.points.length)}
-              sub={`${formatShortDate(history.points[0].date)} — ${formatShortDate(history.points[history.points.length - 1].date)}`}
-              delay={680}
-            />
-          </div>
-        )}
-
-        {/* ── Offer details ──────────────────────────────── */}
-        <section
-          className="opacity-0"
-          style={{
-            animation:
-              "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.5s forwards",
-          }}
-        >
-          <h2 className="font-display text-xl text-sand-bright mb-4">
-            Szczegoly oferty
-          </h2>
-          <div className="bg-bg-card border border-sand/5 rounded-sm divide-y divide-sand/5">
-            <DetailRow label="Organizator" value={offer.tourOperator} />
-            <DetailRow
-              label="Termin"
-              value={`${formatDate(offer.departureDate)} — ${formatDate(offer.returnDate)}`}
-            />
-            <DetailRow label="Dlugosc" value={`${offer.duration} dni`} />
-            <DetailRow
-              label="Polecenia"
-              value={String(offer.ratingRecommends)}
-            />
-            <DetailRow
-              label="Rezerwacje"
-              value={String(offer.ratingReservationCount)}
-            />
-            {offer.employeeRatingCount > 0 && (
-              <DetailRow
-                label="Oceny pracownikow"
-                value={String(offer.employeeRatingCount)}
-              />
-            )}
-            <div className="flex items-center justify-between px-5 py-4">
-              <span className="text-xs uppercase tracking-wider text-sand-dim font-bold">
-                Wakacje.pl
-              </span>
-              <a
-                href={offer.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-glow hover:scale-[1.03] transition-all"
-              >
-                Zobacz oferte
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  className="w-3.5 h-3.5"
-                >
-                  <path d="M7 17L17 7M17 7H7M17 7v10" />
-                </svg>
-              </a>
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   );
