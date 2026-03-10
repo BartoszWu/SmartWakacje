@@ -1,6 +1,7 @@
 import React from "react";
 import { trpc } from "./trpc";
 import { useStore } from "./store/useStore";
+import { parseRoute } from "./store/useStore";
 import { HomePage } from "./components/HomePage";
 import { Header } from "./components/Header";
 import { Controls } from "./components/Controls";
@@ -60,8 +61,22 @@ function OffersView() {
   );
 }
 
+/* Restore state from URL on first load */
+const initialRoute = parseRoute(window.location.pathname);
+if (initialRoute.view !== "home") {
+  useStore.getState().restoreFromUrl();
+}
+
 export default function App() {
   const view = useStore((s) => s.view);
+  const restoreFromUrl = useStore((s) => s.restoreFromUrl);
+
+  // Listen for browser back/forward
+  React.useEffect(() => {
+    const onPopState = () => restoreFromUrl();
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [restoreFromUrl]);
 
   if (view === "home") {
     return <HomePage />;

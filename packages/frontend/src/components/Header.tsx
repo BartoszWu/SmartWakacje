@@ -25,13 +25,16 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-gradient-to-b from-bg via-bg/80 to-transparent backdrop-blur-xl pt-5 pb-3 px-8">
       <div className="max-w-7xl mx-auto flex items-baseline justify-between flex-wrap gap-4">
         <div className="flex items-baseline gap-4">
-          <button
-            type="button"
-            onClick={goHome}
-            className="text-sand-dim hover:text-accent transition-colors text-sm font-medium mr-1"
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              goHome();
+            }}
+            className="text-sand-dim hover:text-accent transition-colors text-sm font-medium mr-1 no-underline"
           >
             &larr; Wyszukiwania
-          </button>
+          </a>
           <h1 className="font-display text-3xl text-sand-bright tracking-tight">
             Smart<span className="text-accent">Wakacje</span>
           </h1>

@@ -3,12 +3,44 @@ import { withComputedScores, type Offer, type SortConfig, type FilterState, type
 
 type View = "home" | "offers" | "offerDetail";
 
+/* ── URL helpers ─────────────────────────────────── */
+export function offerSlug(name: string): string {
+  return encodeURIComponent(name);
+}
+
+export function buildOfferDetailPath(snapshotId: string, offerName: string): string {
+  return `/offer/${snapshotId}/${offerSlug(offerName)}`;
+}
+
+export function buildSnapshotPath(snapshotId: string): string {
+  return `/offers/${snapshotId}`;
+}
+
+type ParsedRoute =
+  | { view: "home" }
+  | { view: "offers"; snapshotId: string }
+  | { view: "offerDetail"; snapshotId: string; offerName: string };
+
+export function parseRoute(pathname: string): ParsedRoute {
+  const offerMatch = pathname.match(/^\/offer\/([^/]+)\/(.+)$/);
+  if (offerMatch) {
+    return { view: "offerDetail", snapshotId: offerMatch[1], offerName: decodeURIComponent(offerMatch[2]) };
+  }
+  const offersMatch = pathname.match(/^\/offers\/([^/]+)\/?$/);
+  if (offersMatch) {
+    return { view: "offers", snapshotId: offersMatch[1] };
+  }
+  return { view: "home" };
+}
+
 interface StoreState {
   // Navigation
   view: View;
   activeSnapshotId: string | null;
   activeSnapshotMeta: SnapshotMeta | null;
   activeOffer: Offer | null;
+  /** When navigating to /offer/:id/:name via URL, stores the name until offers load */
+  pendingOfferName: string | null;
 
   // Offers data
   offers: Offer[];
@@ -26,6 +58,8 @@ interface StoreState {
   openOfferDetail: (offer: Offer) => void;
   goBackToOffers: () => void;
   goHome: () => void;
+  /** Restore state from URL without pushing to history */
+  restoreFromUrl: () => void;
 
   // Data actions
   setOffers: (offers: Offer[]) => void;
@@ -67,6 +101,7 @@ export const useStore = create<StoreState>((set, get) => ({
   activeSnapshotId: null,
   activeSnapshotMeta: null,
   activeOffer: null,
+  pendingOfferName: null,
 
   // Offers data
   offers: [],
@@ -87,20 +122,30 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSnapshotId: snapshotId,
       activeSnapshotMeta: meta ?? null,
       activeOffer: null,
+      pendingOfferName: null,
       offers: [],
       filteredOffers: [],
       filters: initialFilters,
       page: 1,
     });
+    history.pushState(null, "", buildSnapshotPath(snapshotId));
   },
 
   openOfferDetail: (offer) => {
-    set({ view: "offerDetail", activeOffer: offer });
+    const snapshotId = get().activeSnapshotId;
+    set({ view: "offerDetail", activeOffer: offer, pendingOfferName: null });
+    if (snapshotId) {
+      history.pushState(null, "", buildOfferDetailPath(snapshotId, offer.name));
+    }
     window.scrollTo(0, 0);
   },
 
   goBackToOffers: () => {
-    set({ view: "offers", activeOffer: null });
+    const snapshotId = get().activeSnapshotId;
+    set({ view: "offers", activeOffer: null, pendingOfferName: null });
+    if (snapshotId) {
+      history.pushState(null, "", buildSnapshotPath(snapshotId));
+    }
   },
 
   goHome: () => {
@@ -109,11 +154,51 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSnapshotId: null,
       activeSnapshotMeta: null,
       activeOffer: null,
+      pendingOfferName: null,
       offers: [],
       filteredOffers: [],
       filters: initialFilters,
       page: 1,
     });
+    history.pushState(null, "", "/");
+  },
+
+  restoreFromUrl: () => {
+    const route = parseRoute(window.location.pathname);
+    if (route.view === "offers") {
+      set({
+        view: "offers",
+        activeSnapshotId: route.snapshotId,
+        activeSnapshotMeta: null,
+        activeOffer: null,
+        pendingOfferName: null,
+        offers: [],
+        filteredOffers: [],
+        filters: initialFilters,
+        page: 1,
+      });
+    } else if (route.view === "offerDetail") {
+      // Load snapshot first, mark pending offer name to resolve once offers load
+      set({
+        view: "offers", // temporarily "offers" until the offer is found
+        activeSnapshotId: route.snapshotId,
+        activeSnapshotMeta: null,
+        activeOffer: null,
+        pendingOfferName: route.offerName,
+        offers: [],
+        filteredOffers: [],
+        filters: initialFilters,
+        page: 1,
+      });
+    } else {
+      set({
+        view: "home",
+        activeSnapshotId: null,
+        activeSnapshotMeta: null,
+        activeOffer: null,
+        pendingOfferName: null,
+      });
+    }
   },
 
   // Data actions
@@ -122,6 +207,19 @@ export const useStore = create<StoreState>((set, get) => ({
     const countries = [...new Set(enriched.map((o) => o.country))].sort();
     set({ offers: enriched, countries });
     get().applyFilters();
+
+    // Resolve pending offer from URL navigation
+    const { pendingOfferName } = get();
+    if (pendingOfferName) {
+      const match = enriched.find((o) => o.name === pendingOfferName);
+      if (match) {
+        set({ view: "offerDetail", activeOffer: match, pendingOfferName: null });
+        window.scrollTo(0, 0);
+      } else {
+        // Offer not found -- stay on offers list
+        set({ pendingOfferName: null });
+      }
+    }
   },
 
   setFilter: (key, value) => {

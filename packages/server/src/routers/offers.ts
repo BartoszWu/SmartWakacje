@@ -264,7 +264,7 @@ export const offersRouter = router({
 
 async function updateOfferGoogleRating(
   hotelName: string,
-  result: { rating: number; totalRatings: number; mapsUrl: string }
+  result: { rating: number; totalRatings: number; mapsUrl: string; placeId?: string }
 ) {
   const offers = await loadOffers(activeSnapshotId);
   let changed = false;
@@ -274,6 +274,7 @@ async function updateOfferGoogleRating(
       o.googleRating = result.rating;
       o.googleRatingsTotal = result.totalRatings;
       o.googleMapsUrl = result.mapsUrl;
+      if (result.placeId) o.googlePlaceId = result.placeId;
       changed = true;
     }
   }

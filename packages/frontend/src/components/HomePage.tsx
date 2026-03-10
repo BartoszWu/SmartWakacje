@@ -1,6 +1,6 @@
 import React from "react";
 import { trpc } from "../trpc";
-import { useStore } from "../store/useStore";
+import { useStore, buildSnapshotPath } from "../store/useStore";
 import {
   AIRPORT_IDS,
   COUNTRY_IDS,
@@ -44,13 +44,13 @@ export function HomePage() {
   const openSnapshot = useStore((s) => s.openSnapshot);
 
   // Form state
-  const [dateFrom, setDateFrom] = React.useState(DEFAULT_SCRAPER_CONFIG.departureDateFrom);
-  const [dateTo, setDateTo] = React.useState(DEFAULT_SCRAPER_CONFIG.departureDateTo);
+  const [dateFrom, setDateFrom] = React.useState<string>(DEFAULT_SCRAPER_CONFIG.departureDateFrom);
+  const [dateTo, setDateTo] = React.useState<string>(DEFAULT_SCRAPER_CONFIG.departureDateTo);
   const [airports, setAirports] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.airports]);
   const [countries, setCountries] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.countries]);
-  const [service, setService] = React.useState(DEFAULT_SCRAPER_CONFIG.service);
-  const [adults, setAdults] = React.useState(DEFAULT_SCRAPER_CONFIG.adults);
-  const [children, setChildren] = React.useState(DEFAULT_SCRAPER_CONFIG.children);
+  const [service, setService] = React.useState<number>(DEFAULT_SCRAPER_CONFIG.service);
+  const [adults, setAdults] = React.useState<number>(DEFAULT_SCRAPER_CONFIG.adults);
+  const [children, setChildren] = React.useState<number>(DEFAULT_SCRAPER_CONFIG.children);
   const [childAges, setChildAges] = React.useState<string[]>([...DEFAULT_SCRAPER_CONFIG.childAges]);
   const [attributes, setAttributes] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.attributes]);
 
@@ -335,11 +335,14 @@ export function HomePage() {
 
             <div className="flex flex-col gap-3">
               {snapshots.map((snap: SnapshotMeta, idx: number) => (
-                <button
+                <a
                   key={snap.id}
-                  type="button"
-                  onClick={() => openSnapshot(snap.id, snap)}
-                  className="group bg-bg-card hover:bg-bg-card-hover border border-sand/8 hover:border-accent/30 rounded-[14px] p-4 text-left transition-all w-full"
+                  href={buildSnapshotPath(snap.id)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openSnapshot(snap.id, snap);
+                  }}
+                  className="group block bg-bg-card hover:bg-bg-card-hover border border-sand/8 hover:border-accent/30 rounded-[14px] p-4 text-left transition-all w-full no-underline text-inherit"
                   style={{ animationDelay: `${idx * 60}ms` }}
                 >
                   {/* Date */}
@@ -375,7 +378,7 @@ export function HomePage() {
                       </span>
                     </div>
                   </div>
-                </button>
+                </a>
               ))}
             </div>
           </div>

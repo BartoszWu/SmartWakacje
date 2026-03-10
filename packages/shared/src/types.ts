@@ -28,6 +28,7 @@ export interface Offer {
   googleRating?: number;
   googleRatingsTotal?: number;
   googleMapsUrl?: string;
+  googlePlaceId?: string;
   taRating?: number;
   taReviewCount?: number;
   taUrl?: string;

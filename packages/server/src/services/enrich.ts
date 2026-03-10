@@ -47,6 +47,7 @@ function applyGoogleRating(offer: Offer, entry: GoogleCacheEntry): void {
     offer.googleRating = r.rating;
     offer.googleRatingsTotal = r.totalRatings;
     offer.googleMapsUrl = r.mapsUrl;
+    offer.googlePlaceId = r.placeId;
   } else if (entry.results.length === 0) {
     offer.googleRating = 0;
     offer.googleRatingsTotal = 0;

@@ -40,6 +40,7 @@ function GoogleSegment({ offer }: { offer: Offer }) {
           googleRating: r.rating,
           googleRatingsTotal: r.totalRatings,
           googleMapsUrl: r.mapsUrl,
+          googlePlaceId: r.placeId,
         });
       } else if (!data.results?.length) {
         updateOffer(offer.name, { googleRating: 0, googleRatingsTotal: 0 });

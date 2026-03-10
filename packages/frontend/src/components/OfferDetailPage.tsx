@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useStore } from "../store/useStore";
+import { useStore, buildSnapshotPath } from "../store/useStore";
 import { trpc } from "../trpc";
 import { formatDate } from "@smartwakacje/shared";
 import {
@@ -447,7 +447,7 @@ function PhotoGallery({ photos }: { photos: string[] }) {
   return (
     <>
       <section
-        className="mb-8 opacity-0"
+        className="opacity-0"
         style={{ animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.3s forwards" }}
       >
         <div className="flex items-center justify-between mb-4">
@@ -456,7 +456,7 @@ function PhotoGallery({ photos }: { photos: string[] }) {
         </div>
         <div className="bg-bg-card border border-sand/5 rounded-sm p-3 md:p-4">
           <div className={`grid gap-2 max-h-[28rem] overflow-y-auto pr-1 ${
-            hasFeatured ? "grid-cols-3 md:grid-cols-4" : "grid-cols-3 md:grid-cols-4"
+            hasFeatured ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-3" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-3"
           }`}>
             {photos.map((url, i) => (
               <GalleryThumb
@@ -482,9 +482,68 @@ function PhotoGallery({ photos }: { photos: string[] }) {
   );
 }
 
+const GMAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+
+function GoogleMapEmbed({
+  placeId,
+  hotelName,
+  city,
+  country,
+}: {
+  placeId?: string;
+  hotelName: string;
+  city: string;
+  country: string;
+}) {
+  if (!GMAPS_API_KEY) return null;
+
+  const q = placeId
+    ? `place_id:${placeId}`
+    : `${hotelName}, ${city}, ${country}`;
+
+  const src = `https://www.google.com/maps/embed/v1/place?key=${GMAPS_API_KEY}&q=${encodeURIComponent(q)}&zoom=14`;
+
+  return (
+    <div
+      className="opacity-0"
+      style={{
+        animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.35s forwards",
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display text-xl text-sand-bright">Lokalizacja</h2>
+        {placeId && (
+          <a
+            href={`https://www.google.com/maps/place/?q=place_id:${placeId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-sand-dim hover:text-accent transition-colors font-medium inline-flex items-center gap-1"
+          >
+            Otworz w Google Maps
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+              <path d="M7 17L17 7M17 7H7M17 7v10" />
+            </svg>
+          </a>
+        )}
+      </div>
+      <div className="bg-bg-card border border-sand/5 rounded-sm overflow-hidden h-[350px]">
+        <iframe
+          title="Lokalizacja hotelu"
+          src={src}
+          className="w-full h-full border-0"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function OfferDetailPage() {
   const offer = useStore((s) => s.activeOffer);
   const goBack = useStore((s) => s.goBackToOffers);
+  const snapshotId = useStore((s) => s.activeSnapshotId);
 
   // @ts-expect-error - tRPC type inference issue with monorepo
   const { data: history, isLoading } = trpc.offers.priceHistory.useQuery(
@@ -525,10 +584,13 @@ export function OfferDetailPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-bg/40 via-bg/60 to-bg" />
 
         <div className="relative z-10 max-w-5xl mx-auto px-6 md:px-8 h-full flex flex-col justify-end pb-8">
-          <button
-            type="button"
-            onClick={goBack}
-            className="absolute top-6 left-6 md:left-8 inline-flex items-center gap-1.5 text-sand-dim hover:text-accent transition-colors text-sm font-medium group"
+          <a
+            href={snapshotId ? buildSnapshotPath(snapshotId) : "/"}
+            onClick={(e) => {
+              e.preventDefault();
+              goBack();
+            }}
+            className="absolute top-6 left-6 md:left-8 inline-flex items-center gap-1.5 text-sand-dim hover:text-accent transition-colors text-sm font-medium group no-underline"
           >
             <svg
               viewBox="0 0 24 24"
@@ -540,7 +602,7 @@ export function OfferDetailPage() {
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Powrot do ofert
-          </button>
+          </a>
 
           <div
             className="opacity-0"
@@ -600,8 +662,31 @@ export function OfferDetailPage() {
           <RatingBar offer={offer} />
         </div>
 
-        {/* ── Photo gallery ────────────────────────────────── */}
-        <PhotoGallery photos={allPhotos} />
+        {/* ── Photo gallery + Map ────────────────────────────── */}
+        {allPhotos.length > 1 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+            <div className="lg:col-span-3">
+              <PhotoGallery photos={allPhotos} />
+            </div>
+            <div className="lg:col-span-2">
+              <GoogleMapEmbed
+                placeId={offer.googlePlaceId}
+                hotelName={offer.name}
+                city={offer.city}
+                country={offer.country}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="mb-8">
+            <GoogleMapEmbed
+              placeId={offer.googlePlaceId}
+              hotelName={offer.name}
+              city={offer.city}
+              country={offer.country}
+            />
+          </div>
+        )}
 
         {/* Price summary row */}
         <div

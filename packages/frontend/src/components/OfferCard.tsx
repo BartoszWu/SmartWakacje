@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import type { Offer } from "@smartwakacje/shared";
 import { RatingBar } from "./RatingBar";
 import { formatDate } from "@smartwakacje/shared";
-import { useStore } from "../store/useStore";
+import { useStore, buildOfferDetailPath } from "../store/useStore";
 
 function Stars({ count }: { count: number }) {
   return (
@@ -74,6 +74,7 @@ const ICONS = {
 
 export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
   const openOfferDetail = useStore((s) => s.openOfferDetail);
+  const snapshotId = useStore((s) => s.activeSnapshotId);
   const allPhotos = offer.photos?.length ? offer.photos : offer.photo ? [offer.photo] : [];
   const placeholder = `https://placehold.co/570x428/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 12))}`;
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -88,19 +89,16 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
 
   const quality = offer.qualityScore;
   const value = offer.valueScore;
+  const detailHref = snapshotId ? buildOfferDetailPath(snapshotId, offer.name) : "#";
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => openOfferDetail(offer)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          openOfferDetail(offer);
-        }
+    <a
+      href={detailHref}
+      onClick={(e) => {
+        e.preventDefault();
+        openOfferDetail(offer);
       }}
-      className="bg-bg-card rounded overflow-hidden border border-sand/5 transition-all hover:-translate-y-1 hover:shadow-lg hover:border-sand/10 opacity-0 translate-y-7 cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+      className="block bg-bg-card rounded overflow-hidden border border-sand/5 transition-all hover:-translate-y-1 hover:shadow-lg hover:border-sand/10 opacity-0 translate-y-7 cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none no-underline text-inherit"
       style={{
         animation: `cardIn 0.55s cubic-bezier(.22,1,.36,1) ${delay}ms forwards`,
       }}
@@ -227,6 +225,6 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
           </a>
         </div>
       </div>
-    </div>
+    </a>
   );
 }
