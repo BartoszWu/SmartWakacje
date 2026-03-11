@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta } from "@smartwakacje/shared";
 
-type View = "home" | "offers" | "offerDetail";
+type View = "home" | "offers" | "offerDetail" | "favorites" | "compare";
 type Theme = "dark" | "light";
 
 /* ── URL helpers ─────────────────────────────────── */
@@ -20,9 +20,13 @@ export function buildSnapshotPath(snapshotId: string): string {
 type ParsedRoute =
   | { view: "home" }
   | { view: "offers"; snapshotId: string }
-  | { view: "offerDetail"; snapshotId: string; offerName: string };
+  | { view: "offerDetail"; snapshotId: string; offerName: string }
+  | { view: "favorites" }
+  | { view: "compare" };
 
 export function parseRoute(pathname: string): ParsedRoute {
+  if (pathname === "/favorites") return { view: "favorites" };
+  if (pathname === "/compare") return { view: "compare" };
   const offerMatch = pathname.match(/^\/offer\/([^/]+)\/(.+)$/);
   if (offerMatch) {
     return { view: "offerDetail", snapshotId: offerMatch[1], offerName: decodeURIComponent(offerMatch[2]) };
@@ -57,14 +61,28 @@ interface StoreState {
   countries: string[];
   trivagoNotFound: Set<string>;
 
+  // Favorites & compare
+  favorites: Set<string>;
+  showFavoritesOnly: boolean;
+  compareList: string[];
+
   // Navigation actions
   setView: (view: View) => void;
   openSnapshot: (snapshotId: string, meta?: SnapshotMeta | null) => void;
   openOfferDetail: (offer: Offer) => void;
   goBackToOffers: () => void;
   goHome: () => void;
-  /** Restore state from URL without pushing to history */
   restoreFromUrl: () => void;
+
+  // Favorites & compare actions
+  setFavorites: (names: Set<string>) => void;
+  toggleFavorite: (name: string) => void;
+  setShowFavoritesOnly: (v: boolean) => void;
+  addToCompare: (name: string) => void;
+  removeFromCompare: (name: string) => void;
+  clearCompare: () => void;
+  openFavorites: () => void;
+  openCompare: () => void;
 
   // Data actions
   setOffers: (offers: Offer[]) => void;
@@ -91,6 +109,10 @@ const initialFilters: FilterState = {
   minTA: 0,
   minStars: 0,
   minEmployeeRating: 0,
+  minGmapsCount: 0,
+  minTrivagoCount: 0,
+  minTACount: 0,
+  minWakacjeCount: 0,
 };
 
 const initialSort: SortConfig = {
@@ -148,6 +170,11 @@ export const useStore = create<StoreState>((set, get) => ({
   countries: [],
   trivagoNotFound: new Set(),
 
+  // Favorites & compare
+  favorites: new Set(),
+  showFavoritesOnly: false,
+  compareList: [],
+
   // Navigation actions
   setView: (view) => set({ view }),
 
@@ -198,8 +225,59 @@ export const useStore = create<StoreState>((set, get) => ({
     history.pushState(null, "", "/");
   },
 
+  // Favorites & compare actions
+  setFavorites: (names) => {
+    set({ favorites: names });
+    // Re-apply filters if showing favorites only
+    if (get().showFavoritesOnly) get().applyFilters();
+  },
+
+  toggleFavorite: (name) => {
+    const next = new Set(get().favorites);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    set({ favorites: next });
+    if (get().showFavoritesOnly) get().applyFilters();
+  },
+
+  setShowFavoritesOnly: (v) => {
+    set({ showFavoritesOnly: v, page: 1 });
+    get().applyFilters();
+  },
+
+  addToCompare: (name) => {
+    const list = get().compareList;
+    if (list.length < 4 && !list.includes(name)) {
+      set({ compareList: [...list, name] });
+    }
+  },
+
+  removeFromCompare: (name) => {
+    set({ compareList: get().compareList.filter((n) => n !== name) });
+  },
+
+  clearCompare: () => set({ compareList: [] }),
+
+  openFavorites: () => {
+    set({ view: "favorites" });
+    history.pushState(null, "", "/favorites");
+  },
+
+  openCompare: () => {
+    set({ view: "compare" });
+    history.pushState(null, "", "/compare");
+  },
+
   restoreFromUrl: () => {
     const route = parseRoute(window.location.pathname);
+    if (route.view === "favorites") {
+      set({ view: "favorites" });
+      return;
+    }
+    if (route.view === "compare") {
+      set({ view: "compare" });
+      return;
+    }
     if (route.view === "offers") {
       set({
         view: "offers",
@@ -238,7 +316,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // Data actions
   setOffers: (offers) => {
-    const enriched = offers.map(withComputedScores);
+    const enriched = offers.map((o) => withComputedScores(o));
     const countries = [...new Set(enriched.map((o) => o.country))].sort();
     set({ offers: enriched, countries });
     get().applyFilters();
@@ -284,8 +362,12 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   applyFilters: () => {
-    const { offers, filters, sort } = get();
+    const { offers, filters, sort, showFavoritesOnly, favorites } = get();
     let list = [...offers];
+
+    if (showFavoritesOnly) {
+      list = list.filter((o) => favorites.has(o.name));
+    }
 
     if (filters.country !== "all") {
       list = list.filter((o) => o.country === filters.country);
@@ -337,6 +419,19 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (filters.minEmployeeRating > 0) {
       list = list.filter((o) => (o.employeeRatingCount || 0) >= filters.minEmployeeRating);
+    }
+
+    if (filters.minGmapsCount > 0) {
+      list = list.filter((o) => (o.googleRatingsTotal || 0) >= filters.minGmapsCount);
+    }
+    if (filters.minTrivagoCount > 0) {
+      list = list.filter((o) => (o.trivagoReviewsCount || 0) >= filters.minTrivagoCount);
+    }
+    if (filters.minTACount > 0) {
+      list = list.filter((o) => (o.taReviewCount || 0) >= filters.minTACount);
+    }
+    if (filters.minWakacjeCount > 0) {
+      list = list.filter((o) => (o.ratingReservationCount || 0) >= filters.minWakacjeCount);
     }
 
     list.sort((a, b) => {

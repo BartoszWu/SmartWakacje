@@ -6,6 +6,8 @@ export function Header() {
   const filteredOffers = useStore((s) => s.filteredOffers);
   const goHome = useStore((s) => s.goHome);
   const meta = useStore((s) => s.activeSnapshotMeta);
+  const favorites = useStore((s) => s.favorites);
+  const openFavorites = useStore((s) => s.openFavorites);
 
   const src = filteredOffers.length ? filteredOffers : offers;
   const n = src.length;
@@ -58,6 +60,16 @@ export function Header() {
           <div>
             Min cena/os<span className="text-sand-bright font-bold ml-1">{minPrice.toLocaleString("pl")} zl</span>
           </div>
+          <button
+            type="button"
+            onClick={openFavorites}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gold/20 bg-gold/8 text-gold hover:bg-gold/15 hover:border-gold/30 transition-all cursor-pointer normal-case tracking-normal"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z" />
+            </svg>
+            <span className="font-bold">{favorites.size}</span>
+          </button>
           <ThemeToggle />
         </div>
       </div>

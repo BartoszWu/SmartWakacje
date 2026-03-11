@@ -16,6 +16,10 @@ export function FilterBar() {
     filters.minTA > 0,
     filters.minStars > 0,
     filters.minEmployeeRating > 0,
+    filters.minGmapsCount > 0,
+    filters.minTrivagoCount > 0,
+    filters.minTACount > 0,
+    filters.minWakacjeCount > 0,
   ].filter(Boolean).length;
 
   return (
@@ -167,6 +171,65 @@ export function FilterBar() {
             { value: 20, label: "20+" },
           ]}
           onChange={(v) => setFilter("minEmployeeRating", v)}
+        />
+
+        <div className="w-px h-4 bg-sand/10 mx-1" />
+
+        <FilterPill
+          label="G#"
+          color="text-[var(--color-google)]"
+          value={filters.minGmapsCount}
+          options={[
+            { value: 0, label: "G opinii" },
+            { value: 50, label: "50+" },
+            { value: 100, label: "100+" },
+            { value: 500, label: "500+" },
+            { value: 1000, label: "1k+" },
+            { value: 2000, label: "2k+" },
+          ]}
+          onChange={(v) => setFilter("minGmapsCount", v)}
+        />
+
+        <FilterPill
+          label="tv#"
+          color="text-[var(--color-trivago)]"
+          value={filters.minTrivagoCount}
+          options={[
+            { value: 0, label: "tv opinii" },
+            { value: 50, label: "50+" },
+            { value: 100, label: "100+" },
+            { value: 500, label: "500+" },
+            { value: 1000, label: "1k+" },
+          ]}
+          onChange={(v) => setFilter("minTrivagoCount", v)}
+        />
+
+        <FilterPill
+          label="TA#"
+          color="text-[var(--color-ta)]"
+          value={filters.minTACount}
+          options={[
+            { value: 0, label: "TA opinii" },
+            { value: 50, label: "50+" },
+            { value: 100, label: "100+" },
+            { value: 500, label: "500+" },
+            { value: 1000, label: "1k+" },
+          ]}
+          onChange={(v) => setFilter("minTACount", v)}
+        />
+
+        <FilterPill
+          label="W#"
+          color="text-gold"
+          value={filters.minWakacjeCount}
+          options={[
+            { value: 0, label: "W rezerwacji" },
+            { value: 10, label: "10+" },
+            { value: 50, label: "50+" },
+            { value: 100, label: "100+" },
+            { value: 500, label: "500+" },
+          ]}
+          onChange={(v) => setFilter("minWakacjeCount", v)}
         />
       </div>
     </div>

@@ -10,6 +10,8 @@ import { OfferGrid } from "./components/OfferGrid";
 import { Pagination } from "./components/Pagination";
 import { ChatPanel } from "./components/ChatPanel";
 import { OfferDetailPage } from "./components/OfferDetailPage";
+import { FavoritesPage } from "./components/FavoritesPage";
+import { CompareView } from "./components/CompareView";
 
 function OffersView() {
   const activeSnapshotId = useStore((s) => s.activeSnapshotId);
@@ -67,6 +69,23 @@ if (initialRoute.view !== "home") {
   useStore.getState().restoreFromUrl();
 }
 
+function FavoritesLoader({ children }: { children: React.ReactNode }) {
+  const setFavorites = useStore((s) => s.setFavorites);
+
+  // @ts-expect-error - tRPC type inference issue with monorepo
+  const { data } = trpc.favorites.list.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+
+  React.useEffect(() => {
+    if (data) {
+      setFavorites(new Set(Object.keys(data)));
+    }
+  }, [data, setFavorites]);
+
+  return <>{children}</>;
+}
+
 export default function App() {
   const view = useStore((s) => s.view);
   const restoreFromUrl = useStore((s) => s.restoreFromUrl);
@@ -78,13 +97,13 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, [restoreFromUrl]);
 
-  if (view === "home") {
-    return <HomePage />;
-  }
-
-  if (view === "offerDetail") {
-    return <OfferDetailPage />;
-  }
-
-  return <OffersView />;
+  return (
+    <FavoritesLoader>
+      {view === "home" && <HomePage />}
+      {view === "offers" && <OffersView />}
+      {view === "offerDetail" && <OfferDetailPage />}
+      {view === "favorites" && <FavoritesPage />}
+      {view === "compare" && <CompareView />}
+    </FavoritesLoader>
+  );
 }

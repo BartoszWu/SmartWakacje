@@ -133,6 +133,8 @@ export type SortField =
   | "ratingReservationCount"
   | "employeeRatingCount";
 
+export type RatingSource = "google" | "trivago" | "tripAdvisor" | "wakacje";
+
 export type QualityMode = "precomputed" | "legacy";
 
 export interface SortConfig {
@@ -155,6 +157,10 @@ export interface FilterState {
   minTA: number;
   minStars: number;
   minEmployeeRating: number;
+  minGmapsCount: number;
+  minTrivagoCount: number;
+  minTACount: number;
+  minWakacjeCount: number;
 }
 
 export interface ScraperConfig {
@@ -203,6 +209,11 @@ export interface SnapshotMeta {
   offerCount: number;
   filters: ScraperConfig;
   countries: string[];
+}
+
+export interface FavoriteEntry {
+  addedAt: string;
+  hotelId?: number;
 }
 
 export interface RawWakacjeOffer {

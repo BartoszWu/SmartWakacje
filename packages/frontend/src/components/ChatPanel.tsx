@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useStore } from "../store/useStore";
-import type { QualityMode } from "@smartwakacje/shared";
+import type { QualityMode, RatingSource } from "@smartwakacje/shared";
 
 const SUGGESTED_PROMPTS = [
   { label: "Top 5 hoteli jakościowo", icon: "🏆" },
@@ -35,6 +35,13 @@ const QUALITY_MODE_COPY: Record<
     description: "Ocena modelu AI = większa swoboda odpowiedzi kosztem stabilności.",
   },
 };
+
+const SOURCE_CONFIG: { key: RatingSource; label: string; color: string }[] = [
+  { key: "wakacje", label: "Wakacje.pl", color: "var(--color-accent)" },
+  { key: "google", label: "Google", color: "var(--color-google)" },
+  { key: "tripAdvisor", label: "TripAdvisor", color: "var(--color-ta)" },
+  { key: "trivago", label: "Trivago", color: "var(--color-trivago)" },
+];
 
 function isMissingKeyError(error: Error | undefined): boolean {
   if (!error) return false;
@@ -181,6 +188,7 @@ export function ChatPanel() {
   const [fallbackDismissed, setFallbackDismissed] = useState(false);
   const [useFiltered, setUseFiltered] = useState(true);
   const [qualityMode, setQualityMode] = useState<QualityMode>("precomputed");
+  const [disabledSources, setDisabledSources] = useState<RatingSource[]>([]);
   const snapshotId = useStore((s) => s.activeSnapshotId);
   const offers = useStore((s) => s.offers);
   const filteredOffers = useStore((s) => s.filteredOffers);
@@ -199,9 +207,9 @@ export function ChatPanel() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: { snapshotId, offerIds, qualityMode },
+        body: { snapshotId, offerIds, qualityMode, disabledSources },
       }),
-    [snapshotId, qualityMode, JSON.stringify(offerIds)]
+    [snapshotId, qualityMode, JSON.stringify(offerIds), JSON.stringify(disabledSources)]
   );
 
   const { messages, sendMessage, status, error } = useChat({ transport });
@@ -266,6 +274,7 @@ export function ChatPanel() {
           question: question.trim(),
           offerIds,
           qualityMode,
+          disabledSources,
         }),
       });
 
@@ -456,11 +465,47 @@ export function ChatPanel() {
               {QUALITY_MODE_COPY[qualityMode].description}
             </p>
           </div>
+
+          <div className="mt-2.5">
+            <p className="text-[10px] uppercase tracking-widest text-sand-dim/55 font-semibold mb-1.5 px-0.5">
+              Źródła danych
+            </p>
+            <div className="flex gap-1.5">
+              {SOURCE_CONFIG.map((src) => {
+                const isDisabled = disabledSources.includes(src.key);
+                return (
+                  <button
+                    key={src.key}
+                    type="button"
+                    onClick={() =>
+                      setDisabledSources((prev) =>
+                        prev.includes(src.key)
+                          ? prev.filter((s) => s !== src.key)
+                          : [...prev, src.key]
+                      )
+                    }
+                    className={`px-2.5 py-1.5 rounded-sm text-[11px] font-semibold border transition-all duration-150 ${
+                      isDisabled
+                        ? "opacity-35 line-through border-sand/5"
+                        : "bg-bg-card/60 text-sand-bright"
+                    }`}
+                    style={
+                      isDisabled
+                        ? undefined
+                        : { borderColor: src.color, borderLeftWidth: 2 }
+                    }
+                  >
+                    {src.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scroll-smooth">
-          {messages.length === 0 && !isLoading ? (
+          {(messages.length === 0 || (missingKeyMode && fallbackDismissed)) && !isLoading ? (
             <div className="flex flex-col h-full">
               <div className="flex-1 flex flex-col items-center justify-center px-2">
                 <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mb-5">

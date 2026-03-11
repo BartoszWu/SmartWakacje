@@ -85,7 +85,7 @@ async function main() {
   console.log(`Input:   ${dataFile}\n`);
 
   const offers: Offer[] = JSON.parse(await readFile(dataFile, "utf-8"));
-  const scoredOffers = offers.map(withComputedScores);
+  const scoredOffers = offers.map((o) => withComputedScores(o));
 
   const filtered = scoredOffers
     .filter((o) =>

@@ -38,6 +38,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { RatingBar } from "./RatingBar";
+import { FavoriteButton } from "./FavoriteButton";
 
 function formatShortDate(iso: string) {
   const d = new Date(iso);
@@ -658,9 +659,12 @@ export function OfferDetailPage() {
                     </span>
                   )}
                 </div>
-                <h1 className="font-display text-3xl md:text-4xl text-white leading-tight tracking-tight drop-shadow-lg">
-                  {offer.name}
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="font-display text-3xl md:text-4xl text-white leading-tight tracking-tight drop-shadow-lg">
+                    {offer.name}
+                  </h1>
+                  <FavoriteButton name={offer.name} hotelId={offer.hotelId} size="lg" />
+                </div>
                 <div className="flex items-center gap-2 mt-1.5 text-sm text-white/70">
                   <svg
                     viewBox="0 0 24 24"

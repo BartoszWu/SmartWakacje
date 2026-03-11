@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-frontend",
+      "runtimeExecutable": "/Users/bartosz.wisniewski/.bun/bin/bun",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5176,
+      "cwd": "packages/frontend"
+    }
+  ]
+}

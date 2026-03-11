@@ -6,6 +6,7 @@ import {
   computeValueScore,
   type Offer,
   type QualityMode,
+  type RatingSource,
 } from "@smartwakacje/shared";
 
 export const LLM_KEY_MISSING_CODE = "LLM_KEY_MISSING";
@@ -18,8 +19,9 @@ function fmt(n: number | undefined | null): string {
 
 function compressOffers(
   offers: Offer[],
-  options: { includeComputed: boolean }
+  options: { includeComputed: boolean; disabledSources?: RatingSource[] }
 ): string {
+  const disabled = options.disabledSources ?? [];
   const countries = [...new Set(offers.map((o) => o.country))];
   const prices = offers.map((o) => o.price).filter(Boolean);
   const dates = offers.map((o) => o.departureDate).filter(Boolean).sort();
@@ -33,34 +35,44 @@ function compressOffers(
     .filter(Boolean)
     .join(" | ");
 
-  const legend = options.includeComputed
-    ? "Format: Nazwa|Kraj|Cena|W(wakacje.pl)|G(google,ile)|TA(tripadvisor,ile)|Tv(trivago,ile)|Q(quality)|V(value)|Dni|Gwiazdki"
-    : "Format: Nazwa|Kraj|Cena|W(wakacje.pl)|G(google,ile)|TA(tripadvisor,ile)|Tv(trivago,ile)|Dni|Gwiazdki";
+  const legendParts = ["Nazwa", "Kraj", "Cena"];
+  if (!disabled.includes("wakacje")) legendParts.push("W(wakacje.pl)");
+  if (!disabled.includes("google")) legendParts.push("G(google,ile)");
+  if (!disabled.includes("tripAdvisor")) legendParts.push("TA(tripadvisor,ile)");
+  if (!disabled.includes("trivago")) legendParts.push("Tv(trivago,ile)");
+  if (options.includeComputed) legendParts.push("Q(quality)", "V(value)");
+  legendParts.push("Dni", "Gwiazdki");
+  const legend = `Format: ${legendParts.join("|")}`;
 
   const rows = offers.map((o) => {
-    const g =
-      o.googleRating != null
-        ? `${o.googleRating}(${fmt(o.googleRatingsTotal)})`
-        : "-";
-    const ta =
-      o.taRating != null ? `${o.taRating}(${fmt(o.taReviewCount)})` : "-";
-    const tv =
-      o.trivagoRating != null
-        ? `${o.trivagoRating}(${fmt(o.trivagoReviewsCount)})`
-        : "-";
+    const row: (string | number)[] = [o.name, o.country, o.price];
 
-    const row = [
-      o.name,
-      o.country,
-      o.price,
-      `W:${o.ratingValue}`,
-      `G:${g}`,
-      `TA:${ta}`,
-      `Tv:${tv}`,
-    ];
+    if (!disabled.includes("wakacje")) row.push(`W:${o.ratingValue}`);
+
+    if (!disabled.includes("google")) {
+      const g =
+        o.googleRating != null
+          ? `${o.googleRating}(${fmt(o.googleRatingsTotal)})`
+          : "-";
+      row.push(`G:${g}`);
+    }
+
+    if (!disabled.includes("tripAdvisor")) {
+      const ta =
+        o.taRating != null ? `${o.taRating}(${fmt(o.taReviewCount)})` : "-";
+      row.push(`TA:${ta}`);
+    }
+
+    if (!disabled.includes("trivago")) {
+      const tv =
+        o.trivagoRating != null
+          ? `${o.trivagoRating}(${fmt(o.trivagoReviewsCount)})`
+          : "-";
+      row.push(`Tv:${tv}`);
+    }
 
     if (options.includeComputed) {
-      const q = computeQualityScore(o);
+      const q = computeQualityScore(o, disabled);
       const v = computeValueScore(o, q);
       row.push(
         `Q:${q != null ? q.toFixed(2) : "-"}`,
@@ -75,12 +87,31 @@ function compressOffers(
   return `=== ${header} ===\n${legend}\n${rows.join("\n")}`;
 }
 
-const SYSTEM_PROMPT_PRECOMPUTED = `Jesteś ekspertem od wakacji all-inclusive. Analizujesz oferty z wakacje.pl.
+const RATING_DESCRIPTIONS: Record<RatingSource, string> = {
+  wakacje: "W = wakacje.pl (1-10)",
+  google: "G = Google Maps (1-5)",
+  tripAdvisor: "TA = TripAdvisor (1-5)",
+  trivago: "Tv = Trivago (1-10)",
+};
 
-Dane ofert są w formacie pipe-delimited. Kolumny:
-Nazwa|Kraj|Cena(całość zł)|W:ocena_wakacje.pl|G:google(ile_ocen)|TA:tripadvisor(ile)|Tv:trivago(ile)|Q:quality|V:value|Dni|Gwiazdki
+function buildSystemPrompt(
+  qualityMode: QualityMode,
+  disabledSources: RatingSource[] = []
+): string {
+  const enabledDescs = (Object.keys(RATING_DESCRIPTIONS) as RatingSource[])
+    .filter((s) => !disabledSources.includes(s))
+    .map((s) => RATING_DESCRIPTIONS[s]);
+  const ratingsLine = enabledDescs.length
+    ? `Ratingi: ${enabledDescs.join(", ")}. "-" = brak danych.`
+    : "";
 
-Ratingi: W = wakacje.pl (1-10), G = Google Maps (1-5), TA = TripAdvisor (1-5), Tv = Trivago (1-10), "-" = brak danych.
+  const base = `Jesteś ekspertem od wakacji all-inclusive. Analizujesz oferty z wakacje.pl.
+
+Dane ofert są w formacie pipe-delimited.
+${ratingsLine}`;
+
+  if (qualityMode === "precomputed") {
+    return `${base}
 Q to gotowy quality score 0-10 (już wyliczony), V to value score = Q/cena*1000.
 
 Zasady:
@@ -89,13 +120,9 @@ Zasady:
 - Przy rankingach podawaj cenę całkowitą, Q, V i kraj
 - Nie przeliczaj jakości od nowa z surowych ratingów, używaj Q i V jako głównej metryki
 - Nie wymyślaj danych, których nie ma w kontekście`;
+  }
 
-const SYSTEM_PROMPT_LEGACY = `Jesteś ekspertem od wakacji all-inclusive. Analizujesz oferty z wakacje.pl.
-
-Dane ofert są w formacie pipe-delimited. Kolumny:
-Nazwa|Kraj|Cena(całość zł)|W:ocena_wakacje.pl|G:google(ile_ocen)|TA:tripadvisor(ile)|Tv:trivago(ile)|Dni|Gwiazdki
-
-Ratingi: W = wakacje.pl (skala 1-10), G = Google Maps (1-5), TA = TripAdvisor (1-5), Tv = Trivago (1-10). "-" = brak danych.
+  return `${base}
 
 Zasady:
 - Odpowiadaj po polsku, zwięźle
@@ -105,6 +132,7 @@ Zasady:
 - Stosunek ceny do jakości = jakość / cena_calkowita * 1000
 - Jeśli brakuje ocen z jakiegoś źródła, nie traktuj tego jako 0 — po prostu pomiń w obliczeniach
 - Nie wymyślaj danych, których nie ma w kontekście`;
+}
 
 interface UIMessagePart {
   type: string;
@@ -140,7 +168,8 @@ function createJsonResponse(body: unknown, status: number): Response {
 async function loadContext(
   snapshotId: string | null,
   offerIds?: string[] | null,
-  qualityMode: QualityMode = "precomputed"
+  qualityMode: QualityMode = "precomputed",
+  disabledSources: RatingSource[] = []
 ): Promise<string> {
   let offers = await loadOffers(snapshotId || null);
   if (offers.length === 0) throw new Error(NO_OFFERS_CODE);
@@ -153,6 +182,7 @@ async function loadContext(
 
   return compressOffers(offers, {
     includeComputed: qualityMode === "precomputed",
+    disabledSources,
   });
 }
 
@@ -160,11 +190,11 @@ export async function buildExternalPrompt(
   snapshotId: string | null,
   question: string,
   offerIds?: string[] | null,
-  qualityMode: QualityMode = "precomputed"
+  qualityMode: QualityMode = "precomputed",
+  disabledSources: RatingSource[] = []
 ): Promise<string> {
-  const context = await loadContext(snapshotId || null, offerIds, qualityMode);
-  const systemPrompt =
-    qualityMode === "legacy" ? SYSTEM_PROMPT_LEGACY : SYSTEM_PROMPT_PRECOMPUTED;
+  const context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources);
+  const systemPrompt = buildSystemPrompt(qualityMode, disabledSources);
   const trimmedQuestion = question.trim();
 
   return `${systemPrompt}\n\n--- OFERTY ---\n${context}\n\n--- PYTANIE UZYTKOWNIKA ---\n${
@@ -185,11 +215,14 @@ export async function handleChatRequest(req: Request): Promise<Response> {
   const body = await req.json();
   const qualityMode: QualityMode =
     body?.qualityMode === "legacy" ? "legacy" : "precomputed";
+  const disabledSources: RatingSource[] = Array.isArray(body?.disabledSources)
+    ? body.disabledSources
+    : [];
   const { messages, snapshotId, offerIds } = body;
   let context: string;
 
   try {
-    context = await loadContext(snapshotId || null, offerIds, qualityMode);
+    context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources);
   } catch (error) {
     if (error instanceof Error && error.message === NO_OFFERS_CODE) {
       return createJsonResponse(
@@ -202,11 +235,7 @@ export async function handleChatRequest(req: Request): Promise<Response> {
 
   const result = streamText({
     model: google("gemini-2.5-flash"),
-    system: `${
-      qualityMode === "legacy"
-        ? SYSTEM_PROMPT_LEGACY
-        : SYSTEM_PROMPT_PRECOMPUTED
-    }\n\n--- OFERTY ---\n${context}`,
+    system: `${buildSystemPrompt(qualityMode, disabledSources)}\n\n--- OFERTY ---\n${context}`,
     messages: toCoreMsgs(messages),
   });
 

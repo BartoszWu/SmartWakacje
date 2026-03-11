@@ -1,7 +1,7 @@
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Offer, GoogleCacheEntry, TACacheEntry, TrivagoCacheEntry, SnapshotMeta } from "@smartwakacje/shared";
+import type { Offer, GoogleCacheEntry, TACacheEntry, TrivagoCacheEntry, SnapshotMeta, FavoriteEntry } from "@smartwakacje/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "..", "data");
@@ -165,6 +165,16 @@ export async function loadTrivagoCache(): Promise<Record<string, TrivagoCacheEnt
 
 export async function saveTrivagoCache(cache: Record<string, TrivagoCacheEntry>): Promise<void> {
   return saveCache("trivago-ratings-cache", cache);
+}
+
+// ── Favorites ─────────────────────────────────────────────────
+
+export async function loadFavorites(): Promise<Record<string, FavoriteEntry>> {
+  return loadCache<FavoriteEntry>("favorites");
+}
+
+export async function saveFavorites(favorites: Record<string, FavoriteEntry>): Promise<void> {
+  return saveCache("favorites", favorites);
 }
 
 // ── Price history across snapshots ─────────────────────────────

@@ -1,4 +1,4 @@
-import type { Offer } from "./types";
+import type { Offer, RatingSource } from "./types";
 
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -62,10 +62,14 @@ function validScore(value: number | undefined | null): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-export function computeQualityScore(offer: Offer): number | undefined {
+export function computeQualityScore(
+  offer: Offer,
+  disabledSources?: RatingSource[]
+): number | undefined {
+  const disabled = disabledSources ?? [];
   const candidates: { weighted: number; weight: number }[] = [];
 
-  if (validScore(offer.googleRating)) {
+  if (!disabled.includes("google") && validScore(offer.googleRating)) {
     const normalized = offer.googleRating * 2;
     const confidence = confidenceFromCount(offer.googleRatingsTotal);
     candidates.push({
@@ -74,7 +78,7 @@ export function computeQualityScore(offer: Offer): number | undefined {
     });
   }
 
-  if (validScore(offer.trivagoRating)) {
+  if (!disabled.includes("trivago") && validScore(offer.trivagoRating)) {
     const confidence = confidenceFromCount(offer.trivagoReviewsCount);
     candidates.push({
       weighted: withConfidence(offer.trivagoRating, confidence) * QUALITY_WEIGHTS.trivago,
@@ -82,7 +86,7 @@ export function computeQualityScore(offer: Offer): number | undefined {
     });
   }
 
-  if (validScore(offer.taRating)) {
+  if (!disabled.includes("tripAdvisor") && validScore(offer.taRating)) {
     const normalized = offer.taRating * 2;
     const confidence = confidenceFromCount(offer.taReviewCount);
     candidates.push({
@@ -91,7 +95,7 @@ export function computeQualityScore(offer: Offer): number | undefined {
     });
   }
 
-  if (validScore(offer.ratingValue)) {
+  if (!disabled.includes("wakacje") && validScore(offer.ratingValue)) {
     const confidence = confidenceFromCount(offer.ratingReservationCount);
     candidates.push({
       weighted: withConfidence(offer.ratingValue, confidence) * QUALITY_WEIGHTS.wakacje,
@@ -108,15 +112,18 @@ export function computeQualityScore(offer: Offer): number | undefined {
 
 export function computeValueScore(
   offer: Offer,
-  qualityScore = computeQualityScore(offer)
+  qualityScore = computeQualityScore(offer),
 ): number | undefined {
   const quality = qualityScore;
   if (quality == null || !offer.price || offer.price <= 0) return undefined;
   return (quality / offer.price) * 1000;
 }
 
-export function withComputedScores(offer: Offer): Offer {
-  const qualityScore = computeQualityScore(offer);
+export function withComputedScores(
+  offer: Offer,
+  disabledSources?: RatingSource[],
+): Offer {
+  const qualityScore = computeQualityScore(offer, disabledSources);
   const valueScore = computeValueScore(offer, qualityScore);
   return {
     ...offer,

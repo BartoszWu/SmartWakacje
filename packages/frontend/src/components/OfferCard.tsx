@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import type { Offer } from "@smartwakacje/shared";
 import { RatingBar } from "./RatingBar";
+import { FavoriteButton } from "./FavoriteButton";
 import { formatDate } from "@smartwakacje/shared";
 import { useStore, buildOfferDetailPath } from "../store/useStore";
 
@@ -129,6 +130,10 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
+        <div className="absolute top-3 right-3 z-10">
+          <FavoriteButton name={offer.name} hotelId={offer.hotelId} />
+        </div>
 
         <div className="absolute top-3 left-3 flex gap-1.5 z-10">
           {offer.promoFirstMinute && (
