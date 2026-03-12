@@ -45,6 +45,8 @@ interface WakacjeOffer {
   service: number;
   serviceDesc: string;
   tourOperatorName: string;
+  tourOperator?: number;
+  offerHash?: string;
   departurePlace?: string;
   departureTypeName?: string;
   promoLastMinute: boolean;
@@ -253,6 +255,12 @@ function parseOffer(config: ScraperConfig, o: WakacjeOffer): Offer {
     category: o.category,
     serviceDesc: o.serviceDesc,
     tourOperator: o.tourOperatorName,
+    offerHash: o.offerHash ?? null,
+    tourOperatorId: o.tourOperator ?? null,
+    departurePlace: o.departurePlace ?? null,
+    departureTypeName: o.departureTypeName ?? null,
+    roomType: (o as Record<string, unknown>).roomType as string ?? null,
+    tourOpCode: o.offerHash?.split(":")[0] ?? null,
     promoLastMinute: o.promoLastMinute,
     promoFirstMinute: o.promoFirstMinute,
     photos: (o.photos?.["570,428"] ?? []).map(p => `https://www.wakacje.pl${p}`),

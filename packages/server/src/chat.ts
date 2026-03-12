@@ -1,6 +1,7 @@
 import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
-import { loadOffers } from "./services/cache";
+import { loadOffers, loadDescriptionCache } from "./services/cache";
+import type { DescriptionCacheEntry } from "@smartwakacje/shared";
 import {
   computeQualityScore,
   computeValueScore,
@@ -94,6 +95,41 @@ const RATING_DESCRIPTIONS: Record<RatingSource, string> = {
   trivago: "Tv = Trivago (1-10)",
 };
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const DESCRIPTION_LABELS_FOR_CHAT = new Set([
+  "Położenie", "Polozenie",
+  "Plaża", "Plaza",
+  "Wyżywienie", "Wyzywienie",
+  "Dzieci",
+  "Mocne strony",
+]);
+
+function compressDescriptions(
+  offers: Offer[],
+  descCache: Record<string, DescriptionCacheEntry>
+): string {
+  const lines: string[] = [];
+  for (const o of offers) {
+    const entry = descCache[o.name];
+    if (!entry?.descriptions?.length) continue;
+
+    const relevant = entry.descriptions.filter((d) =>
+      DESCRIPTION_LABELS_FOR_CHAT.has(d.label)
+    );
+    if (relevant.length === 0) continue;
+
+    const parts = relevant.map((d) => {
+      const text = stripHtml(d.value).slice(0, 200);
+      return `${d.label}: ${text}`;
+    });
+    lines.push(`[${o.name}] ${parts.join(" | ")}`);
+  }
+  return lines.join("\n");
+}
+
 function buildSystemPrompt(
   qualityMode: QualityMode,
   disabledSources: RatingSource[] = []
@@ -169,7 +205,8 @@ async function loadContext(
   snapshotId: string | null,
   offerIds?: string[] | null,
   qualityMode: QualityMode = "precomputed",
-  disabledSources: RatingSource[] = []
+  disabledSources: RatingSource[] = [],
+  includeDescriptions = false
 ): Promise<string> {
   let offers = await loadOffers(snapshotId || null);
   if (offers.length === 0) throw new Error(NO_OFFERS_CODE);
@@ -180,10 +217,20 @@ async function loadContext(
     if (offers.length === 0) throw new Error(NO_OFFERS_CODE);
   }
 
-  return compressOffers(offers, {
+  let context = compressOffers(offers, {
     includeComputed: qualityMode === "precomputed",
     disabledSources,
   });
+
+  if (includeDescriptions) {
+    const descCache = await loadDescriptionCache();
+    const descContext = compressDescriptions(offers, descCache);
+    if (descContext) {
+      context += `\n\n--- OPISY HOTELI ---\n${descContext}`;
+    }
+  }
+
+  return context;
 }
 
 export async function buildExternalPrompt(
@@ -191,9 +238,10 @@ export async function buildExternalPrompt(
   question: string,
   offerIds?: string[] | null,
   qualityMode: QualityMode = "precomputed",
-  disabledSources: RatingSource[] = []
+  disabledSources: RatingSource[] = [],
+  includeDescriptions = false
 ): Promise<string> {
-  const context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources);
+  const context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources, includeDescriptions);
   const systemPrompt = buildSystemPrompt(qualityMode, disabledSources);
   const trimmedQuestion = question.trim();
 
@@ -219,10 +267,11 @@ export async function handleChatRequest(req: Request): Promise<Response> {
     ? body.disabledSources
     : [];
   const { messages, snapshotId, offerIds } = body;
+  const includeDescriptions: boolean = body?.includeDescriptions === true;
   let context: string;
 
   try {
-    context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources);
+    context = await loadContext(snapshotId || null, offerIds, qualityMode, disabledSources, includeDescriptions);
   } catch (error) {
     if (error instanceof Error && error.message === NO_OFFERS_CODE) {
       return createJsonResponse(

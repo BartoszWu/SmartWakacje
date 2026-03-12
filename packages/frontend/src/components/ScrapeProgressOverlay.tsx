@@ -267,6 +267,7 @@ export function ScrapeProgressOverlay({ completedSnapshotId, onContinue }: Props
           "Pobieranie ocen z Google Maps": "Google Maps",
           "Pobieranie ocen z Trivago": "Trivago",
           "Pobieranie ocen z TripAdvisor": "TripAdvisor",
+          "Pobieranie opisów hoteli": "Descriptions",
         };
         return map[s.label];
       })

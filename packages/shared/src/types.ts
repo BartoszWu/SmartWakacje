@@ -38,6 +38,13 @@ export interface Offer {
   trivagoUrl?: string;
   trivagoNsid?: number;
   trivagoAspects?: TrivagoAspects;
+  offerHash?: string;
+  tourOperatorId?: number;
+  departurePlace?: string;
+  departureTypeName?: string;
+  departurePlaceCode?: string;
+  roomType?: string;
+  tourOpCode?: string;
   qualityScore?: number;
   valueScore?: number;
 }
@@ -177,6 +184,7 @@ export interface ScraperConfig {
   delayBetweenPages: number;
   minPrice?: number;
   maxPrice?: number;
+  fetchDescriptions?: boolean;
 }
 
 export interface FetchProviderConfig {
@@ -211,9 +219,39 @@ export interface SnapshotMeta {
   countries: string[];
 }
 
+export interface OfferVariant {
+  id: string;
+  serviceDesc: string;
+  duration: number;
+  numberOfNights: number;
+  totalPrice: number;
+  departureCity: string;
+  departureDate: string;
+  returnDate: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  returnDepartTime?: string;
+  returnArrivalTime?: string;
+  roomDesc?: string;
+}
+
 export interface FavoriteEntry {
   addedAt: string;
   hotelId?: number;
+}
+
+export interface DescriptionSection {
+  label: string;
+  value: string;
+}
+
+export interface DescriptionCacheEntry {
+  descriptions: DescriptionSection[];
+  facilities?: {
+    hotelFacilities: { title: string; item: string[] };
+    hotelAttractions: { title: string; item: string[] };
+  };
+  fetchedAt: string;
 }
 
 export interface RawWakacjeOffer {

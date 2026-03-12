@@ -1,7 +1,7 @@
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Offer, GoogleCacheEntry, TACacheEntry, TrivagoCacheEntry, SnapshotMeta, FavoriteEntry } from "@smartwakacje/shared";
+import type { Offer, GoogleCacheEntry, TACacheEntry, TrivagoCacheEntry, DescriptionCacheEntry, SnapshotMeta, FavoriteEntry } from "@smartwakacje/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "..", "..", "..", "..", "data");
@@ -39,6 +39,15 @@ export async function getLatestSnapshotId(): Promise<string | null> {
 
 function snapshotDir(snapshotId: string): string {
   return join(SNAPSHOTS_DIR, snapshotId);
+}
+
+export async function loadSnapshotMeta(snapshotId: string): Promise<SnapshotMeta | null> {
+  try {
+    const raw = await readFile(join(snapshotDir(snapshotId), "meta.json"), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 // ── Offers (snapshot-aware) ────────────────────────────────────
@@ -118,6 +127,38 @@ export async function deleteSnapshot(snapshotId: string): Promise<void> {
   await rm(dir, { recursive: true, force: true });
 }
 
+// ── Raw offers fallback (for offerHash / tourOperator lookup) ──
+
+export interface RawOfferLookup {
+  offerHash: string;
+  tourOperator: number;
+  hotelId?: number;
+}
+
+export async function loadRawOffers(snapshotId?: string | null): Promise<Map<string, RawOfferLookup>> {
+  const id = snapshotId || (await getLatestSnapshotId());
+  if (!id) return new Map();
+
+  const rawFile = join(snapshotDir(id), "raw.json");
+  try {
+    const data = await readFile(rawFile, "utf-8");
+    const rawOffers: Array<{ id: number; offerHash?: string; tourOperator?: number; hotelId?: number }> = JSON.parse(data);
+    const map = new Map<string, RawOfferLookup>();
+    for (const o of rawOffers) {
+      if (o.offerHash && o.tourOperator != null) {
+        map.set(String(o.id), {
+          offerHash: o.offerHash,
+          tourOperator: o.tourOperator,
+          hotelId: o.hotelId,
+        });
+      }
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 // ── Rating caches (global, in data/cache/) ─────────────────────
 
 export async function loadCache<T>(name: string): Promise<Record<string, T>> {
@@ -165,6 +206,16 @@ export async function loadTrivagoCache(): Promise<Record<string, TrivagoCacheEnt
 
 export async function saveTrivagoCache(cache: Record<string, TrivagoCacheEntry>): Promise<void> {
   return saveCache("trivago-ratings-cache", cache);
+}
+
+// ── Descriptions ──────────────────────────────────
+
+export async function loadDescriptionCache(): Promise<Record<string, DescriptionCacheEntry>> {
+  return loadCache<DescriptionCacheEntry>("descriptions-cache");
+}
+
+export async function saveDescriptionCache(cache: Record<string, DescriptionCacheEntry>): Promise<void> {
+  return saveCache("descriptions-cache", cache);
 }
 
 // ── Favorites ─────────────────────────────────────────────────

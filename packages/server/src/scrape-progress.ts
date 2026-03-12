@@ -34,6 +34,7 @@ const STEP_LABELS = [
   "Pobieranie ocen z Google Maps",
   "Pobieranie ocen z Trivago",
   "Pobieranie ocen z TripAdvisor",
+  "Pobieranie opisów hoteli",
   "Zapisywanie wyników",
 ];
 

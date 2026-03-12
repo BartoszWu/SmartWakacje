@@ -3,8 +3,10 @@ import type {
   GoogleCacheEntry,
   TACacheEntry,
   TrivagoCacheEntry,
+  DescriptionCacheEntry,
   GoogleSearchResult,
   TASearchResult,
+  ScraperConfig,
 } from "@smartwakacje/shared";
 import {
   loadGoogleCache,
@@ -13,10 +15,13 @@ import {
   saveTACache,
   loadTrivagoCache,
   saveTrivagoCache,
+  loadDescriptionCache,
+  saveDescriptionCache,
 } from "./cache";
 import { searchGoogle } from "./google";
 import { searchTA } from "./tripadvisor";
 import { searchTrivago } from "./trivago";
+import { fetchHotelDescription } from "./wakacje-description";
 
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 500;
@@ -215,6 +220,8 @@ export async function enrichOffers(
   onProgress?: EnrichProgress,
   /** If provided, only enrich these specific hotel names (for retry) */
   onlyHotels?: Set<string>,
+  /** Snapshot config needed for description fetching */
+  snapshotConfig?: ScraperConfig,
 ): Promise<EnrichResult> {
   const allHotels = getUniqueHotels(offers);
   const hotels = onlyHotels
@@ -297,6 +304,62 @@ export async function enrichOffers(
     );
   }
 
+  // ── Descriptions phase (parallel with ratings) ──
+  if (snapshotConfig && snapshotConfig.fetchDescriptions !== false) {
+    const descCache = await loadDescriptionCache();
+    const descConfig = {
+      adults: snapshotConfig.adults,
+      kids: snapshotConfig.children,
+      kidsAges: snapshotConfig.childAges,
+      departureCityId: snapshotConfig.airports[0],
+    };
+
+    // Deduplicate by hotelId or name
+    const seenDesc = new Set<string>();
+    const descHotels: Offer[] = [];
+    for (const o of offers) {
+      const key = o.hotelId ? String(o.hotelId) : o.name;
+      if (seenDesc.has(key)) continue;
+      if (descCache[o.name]) continue;
+      if (onlyHotels && !onlyHotels.has(o.name)) continue;
+      seenDesc.add(key);
+      descHotels.push(o);
+    }
+
+    phases.push(
+      (async (): Promise<{ phase: string; failures: EnrichFailure[] }> => {
+        if (descHotels.length === 0) {
+          onProgress?.("Descriptions", 0, 0);
+          return { phase: "Descriptions", failures: [] };
+        }
+
+        const descFailures: EnrichFailure[] = [];
+        let descProcessed = 0;
+
+        for (const offer of descHotels) {
+          descProcessed++;
+          try {
+            const entry = await fetchHotelDescription(offer, descConfig);
+            descCache[offer.name] = entry;
+            const descCount = entry.descriptions.length;
+            console.log(`  [Descriptions] ${descProcessed}/${descHotels.length} ${offer.name} \u2705 (${descCount} sections)`);
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.log(`  [Descriptions] ${descProcessed}/${descHotels.length} ${offer.name} \u274c ${msg}`);
+            descFailures.push({ name: offer.name, error: msg });
+          }
+
+          await saveDescriptionCache(descCache);
+          onProgress?.("Descriptions", descProcessed, descHotels.length);
+
+          if (descProcessed < descHotels.length) await sleep(2500);
+        }
+
+        return { phase: "Descriptions", failures: descFailures };
+      })(),
+    );
+  }
+
   const phaseResults = await Promise.allSettled(phases);
   for (const result of phaseResults) {
     if (result.status === "fulfilled" && result.value.failures.length > 0) {
@@ -306,7 +369,7 @@ export async function enrichOffers(
     }
   }
 
-  // ── Phase 4: apply all cached ratings to offers ──
+  // ── Apply all cached ratings to offers ──
   for (const offer of offers) {
     const g = googleCache[offer.name];
     if (g) applyGoogleRating(offer, g);

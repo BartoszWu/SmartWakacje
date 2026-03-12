@@ -3,13 +3,15 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { existsSync, statSync } from "node:fs";
 import { join, extname } from "node:path";
 import { router } from "./trpc";
-import { offersRouter, snapshotsRouter, favoritesRouter } from "./routers";
+import { offersRouter, snapshotsRouter, favoritesRouter, descriptionsRouter, variantsRouter } from "./routers";
 import { buildExternalPrompt, handleChatRequest, NO_OFFERS_CODE } from "./chat";
 
 export const appRouter = router({
   offers: offersRouter,
   snapshots: snapshotsRouter,
   favorites: favoritesRouter,
+  descriptions: descriptionsRouter,
+  variants: variantsRouter,
 });
 
 export type AppRouter = typeof appRouter;
@@ -91,12 +93,14 @@ serve({
         const disabledSources = Array.isArray(body?.disabledSources)
           ? body.disabledSources
           : [];
+        const includeDescriptions = body?.includeDescriptions === true;
         const prompt = await buildExternalPrompt(
           snapshotId,
           question,
           offerIds,
           qualityMode,
-          disabledSources
+          disabledSources,
+          includeDescriptions
         );
 
         return jsonResponse({ prompt });

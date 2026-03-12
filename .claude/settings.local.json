@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(curl*wakacje.pl*)",
       "Bash(./node_modules/.bin/tsc:*)",
       "Bash(./node_modules/.bin/vite build:*)",
       "Bash(bunx --bun tsc --noEmit -p packages/frontend/tsconfig.app.json 2>&1 | head -30)",
@@ -8,7 +9,20 @@
       "Bash(bunx --bun tsc --noEmit -p packages/shared/tsconfig.json 2>&1 | head -10)",
       "mcp__chrome-devtools__navigate_page",
       "mcp__chrome-devtools__list_network_requests",
-      "mcp__chrome-devtools__get_network_request"
+      "mcp__chrome-devtools__get_network_request",
+      "WebFetch(domain:registry.npmjs.org)",
+      "Bash(curl -s -X POST \"https://www.wakacje.pl/v2/api/getCalculatorOfferVariants/698939\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json\" \\\\\n  -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36\" \\\\\n  -H \"Origin: https://www.wakacje.pl\" \\\\\n  -H \"Referer: https://www.wakacje.pl/wczasy/\" \\\\\n  -d '{\"adults\":2,\"kids\":2,\"kidsAges\":[\"20190603\",\"20210125\"],\"serviceId\":1,\"duration\":7,\"departureDate\":\"2026-06-21\",\"transportId\":1,\"departureCityId\":32,\"hotelId\":18953,\"infants\":0,\"cruiseId\":0,\"roundTripId\":0,\"isAlternativeRoom\":false,\"isOffer77\":false}' 2>/dev/null | python3 -m json.tool 2>/dev/null | head -200)",
+      "Bash(curl -s -X POST \"https://www.wakacje.pl/v2/api/getCalculatorOfferVariants/698939\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json\" \\\\\n  -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36\" \\\\\n  -H \"Origin: https://www.wakacje.pl\" \\\\\n  -H \"Referer: https://www.wakacje.pl/wczasy/\" \\\\\n  -d '{\"adults\":2,\"kids\":2,\"kidsAges\":[\"20190603\",\"20210125\"],\"serviceId\":1,\"duration\":7,\"departureDate\":\"2026-06-21\",\"transportId\":1,\"departureCityId\":32,\"hotelId\":18953,\"tourOp\":\"\",\"tourId\":0,\"infants\":0,\"cruiseId\":0,\"roundTripId\":0,\"isAlternativeRoom\":false,\"isOffer77\":false}' 2>/dev/null | python3 -m json.tool 2>/dev/null | head -200)",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__new_page",
+      "Bash(curl -s -X POST \"https://www.wakacje.pl/v2/api/getCalculatorOfferVariants/698939\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -H \"Accept: application/json\" \\\\\n  -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" \\\\\n  -H \"Origin: https://www.wakacje.pl\" \\\\\n  -H \"Referer: https://www.wakacje.pl/wczasy/\" \\\\\n  -d '{\"adults\":2,\"kids\":2,\"kidsAges\":[\"20190603\",\"20210125\"],\"serviceId\":1,\"duration\":7,\"departureDate\":\"2026-06-21\",\"transportId\":1,\"departureCityId\":32,\"hotelId\":18953,\"tourOp\":\"GRCS\",\"tourId\":1588,\"infants\":0,\"cruiseId\":0,\"roundTripId\":0,\"isAlternativeRoom\":false,\"isOffer77\":false}' 2>/dev/null | python3 -m json.tool 2>/dev/null | head -150)",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(npx --yes tsc --noEmit -p packages/server/tsconfig.json 2>&1 | head -20)",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__take_snapshot",
+      "Bash(curl -s -X POST 'https://www.wakacje.pl/v2/api/offerConfiguratorV2/offerVariants' \\\\\n  -H 'Content-Type: application/json' \\\\\n  -H 'Accept: application/json' \\\\\n  -H 'User-Agent: Mozilla/5.0' \\\\\n  -H 'Origin: https://www.wakacje.pl' \\\\\n  -H 'Referer: https://www.wakacje.pl/wczasy/' \\\\\n  -d '{\"offerId\":1012181,\"departureDate\":[\"2026-03-01:2026-03-31\"],\"duration\":[],\"adults\":2,\"kidsAges\":[],\"service\":[],\"transportType\":[],\"departurePlace\":[],\"providerIds\":[],\"limit\":5,\"orderBy\":\"departureDate\"}' | python3 -m json.tool 2>/dev/null | head -100)",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__take_screenshot"
     ]
   },
   "sandbox": {

@@ -587,6 +587,97 @@ function GoogleMapEmbed({
   );
 }
 
+function HotelDescription({ hotelName, offerId }: { hotelName: string; offerId: string }) {
+  const snapshotId = useStore((s) => s.activeSnapshotId);
+
+  // @ts-expect-error - tRPC type inference issue with monorepo
+  const { data: description, isLoading, refetch } = trpc.descriptions.getDescription.useQuery(
+    { hotelName },
+    { enabled: !!hotelName }
+  );
+
+  // @ts-expect-error - tRPC type inference issue with monorepo
+  const fetchMutation = trpc.descriptions.fetchDescription.useMutation({
+    onSuccess: () => refetch(),
+  });
+
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0]));
+
+  const toggleSection = (idx: number) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="w-6 h-6 border-2 border-sand/15 border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!description) {
+    return (
+      <div className="text-center py-6">
+        <p className="text-sm text-sand-dim mb-3">Brak opisu hotelu w cache</p>
+        <button
+          type="button"
+          onClick={() => fetchMutation.mutate({ offerId, hotelName, snapshotId })}
+          disabled={fetchMutation.isPending}
+          className="px-4 py-2 rounded-sm text-xs font-semibold bg-accent text-white hover:bg-accent-glow transition-colors disabled:opacity-40"
+        >
+          {fetchMutation.isPending ? "Pobieranie..." : "Pobierz opis"}
+        </button>
+        {fetchMutation.isError && (
+          <p className="mt-2 text-xs text-red">{(fetchMutation.error as Error).message}</p>
+        )}
+      </div>
+    );
+  }
+
+  const sections = description.descriptions ?? [];
+
+  return (
+    <div className="space-y-1">
+      {sections.map((section: { label: string; value: string }, idx: number) => {
+        const isExpanded = expandedSections.has(idx);
+        return (
+          <div key={section.label} className="border border-sand/5 rounded-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection(idx)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-sand/3 transition-colors"
+            >
+              <span className="text-xs uppercase tracking-wider text-sand-dim font-bold">
+                {section.label}
+              </span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`w-4 h-4 text-sand-dim transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {isExpanded && (
+              <div
+                className="px-4 pb-4 text-sm text-sand leading-relaxed prose-sm [&_ul]:list-disc [&_ul]:pl-4 [&_li]:mb-1 [&_p]:mb-2"
+                dangerouslySetInnerHTML={{ __html: section.value }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function OfferDetailPage() {
   const offer = useStore((s) => s.activeOffer);
 
@@ -753,6 +844,17 @@ export function OfferDetailPage() {
             {/* Photo gallery (compact thumbnails) */}
             {allPhotos.length > 0 && <PhotoGallery photos={allPhotos} />}
 
+            {/* Hotel description */}
+            <section
+              className="opacity-0"
+              style={{ animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.35s forwards" }}
+            >
+              <h2 className="font-display text-xl text-sand-bright mb-3">Opis hotelu</h2>
+              <div className="bg-bg-card border border-sand/5 rounded-sm p-4">
+                <HotelDescription hotelName={offer.name} offerId={offer.id} />
+              </div>
+            </section>
+
             {/* Chart section */}
             <section>
               <div className="flex items-center justify-between mb-3">
@@ -862,10 +964,402 @@ export function OfferDetailPage() {
                 )}
               </div>
             </section>
+
           </div>
+        </div>
+
+        {/* ── Full-width variants section ──────────────────── */}
+        <div className="mt-8">
+          <OfferVariants offer={offer} />
         </div>
       </div>
     </div>
+  );
+}
+
+const SHORT_DAY_NAMES = ["niedz.", "pon.", "wt.", "sr.", "czw.", "pt.", "sob."];
+
+function formatTermin(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = SHORT_DAY_NAMES[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day} ${dd}.${mm}`;
+}
+
+const MONTH_NAMES = [
+  "Styczen", "Luty", "Marzec", "Kwiecien", "Maj", "Czerwiec",
+  "Lipiec", "Sierpien", "Wrzesien", "Pazdziernik", "Listopad", "Grudzien",
+] as const;
+
+function OfferVariants({ offer }: { offer: import("@smartwakacje/shared").Offer }) {
+  const offerId = offer.id;
+  // @ts-expect-error - tRPC type inference issue with monorepo
+  const mutation = trpc.variants.fetchVariants.useMutation();
+  // @ts-expect-error - tRPC type inference issue with monorepo
+  const enrichMutation = trpc.variants.enrichVariants.useMutation();
+  const [month, setMonth] = useState(6);
+  const [cityFilter, setCityFilter] = useState<string | null>("Katowice");
+  const [nightsFilter, setNightsFilter] = useState<Set<number>>(new Set());
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+  const [sortKey, setSortKey] = useState<"date" | "nights" | "price" | "pricePerNight">("price");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [enrichedVariants, setEnrichedVariants] = useState<import("@smartwakacje/shared").OfferVariant[]>([]);
+
+  const variants = enrichedVariants.length > 0 ? enrichedVariants : (mutation.data ?? []);
+  const sorted = useMemo(() => [...variants].sort((a, b) => a.totalPrice - b.totalPrice), [variants]);
+
+  const hasFlightTimes = sorted.some((v) => v.departureTime);
+
+  // Auto-enrich after base variants load
+  useEffect(() => {
+    if (!mutation.data || mutation.data.length === 0) return;
+    if (enrichedVariants.length > 0) return;
+    if (!offer.hotelId || !offer.tourOpCode || !offer.tourOperatorId) return;
+
+    enrichMutation.mutate(
+      {
+        offerId,
+        variants: mutation.data,
+        hotelId: offer.hotelId,
+        tourOp: offer.tourOpCode,
+        tourId: offer.tourOperatorId,
+      },
+      {
+        onSuccess: (data: import("@smartwakacje/shared").OfferVariant[]) => {
+          setEnrichedVariants(data);
+        },
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mutation.data]);
+
+  const toggleSort = useCallback((key: typeof sortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) setSortAsc((a) => !a);
+      else setSortAsc(true);
+      return key;
+    });
+  }, []);
+
+  const cities = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const v of sorted) {
+      const city = v.departureCity || "Inne";
+      counts.set(city, (counts.get(city) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [sorted]);
+
+  const effectiveFilter = useMemo(() => {
+    if (cityFilter && !cities.some(([c]) => c === cityFilter)) return null;
+    return cityFilter;
+  }, [cityFilter, cities]);
+
+  const cityFiltered = useMemo(
+    () => effectiveFilter ? sorted.filter((v) => (v.departureCity || "Inne") === effectiveFilter) : sorted,
+    [sorted, effectiveFilter],
+  );
+
+  const nightsCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const v of cityFiltered) {
+      const n = v.numberOfNights || v.duration - 1;
+      counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => a[0] - b[0]);
+  }, [cityFiltered]);
+
+  const filtered = useMemo(() => {
+    let base = cityFiltered;
+    if (dateFrom) base = base.filter((v) => v.departureDate.slice(0, 10) >= dateFrom);
+    if (dateTo) base = base.filter((v) => v.departureDate.slice(0, 10) <= dateTo);
+    if (nightsFilter.size > 0) base = base.filter((v) => nightsFilter.has(v.numberOfNights || v.duration - 1));
+    const dir = sortAsc ? 1 : -1;
+    return [...base].sort((a, b) => {
+      switch (sortKey) {
+        case "date": return dir * (a.departureDate.localeCompare(b.departureDate));
+        case "nights": return dir * ((a.numberOfNights || a.duration - 1) - (b.numberOfNights || b.duration - 1));
+        case "price": return dir * (a.totalPrice - b.totalPrice);
+        case "pricePerNight": {
+          const aN = a.numberOfNights || a.duration - 1;
+          const bN = b.numberOfNights || b.duration - 1;
+          return dir * ((aN > 0 ? a.totalPrice / aN : 0) - (bN > 0 ? b.totalPrice / bN : 0));
+        }
+        default: return 0;
+      }
+    });
+  }, [cityFiltered, nightsFilter, dateFrom, dateTo, sortKey, sortAsc]);
+
+  const minPrice = sorted.length > 0 ? sorted[0].totalPrice : 0;
+
+  const copyAsMarkdown = useCallback(() => {
+    const hasFlight = filtered.some((v) => v.departureTime);
+    const header = hasFlight
+      ? "| Termin | Noce | Wylot | Powrot | Miasto | Pokoj | Wyzywienie | Cena | Cena/noc |"
+      : "| Termin | Noce | Miasto wylotu | Wyzywienie | Cena | Cena/noc |";
+    const sep = hasFlight
+      ? "|---|---|---|---|---|---|---|---|---|"
+      : "|---|---|---|---|---|---|";
+    const rows = filtered.map((v) => {
+      const nights = v.numberOfNights || v.duration - 1;
+      const pricePerNight = nights > 0 ? Math.round(v.totalPrice / nights) : 0;
+      const termin = `${v.departureDate ? formatTermin(v.departureDate) : ""} – ${v.returnDate ? formatTermin(v.returnDate) : ""}`;
+      if (hasFlight) {
+        const dep = v.departureTime && v.arrivalTime ? `${v.departureTime}→${v.arrivalTime}` : "";
+        const ret = v.returnDepartTime && v.returnArrivalTime ? `${v.returnDepartTime}→${v.returnArrivalTime}` : "";
+        return `| ${termin} | ${nights} | ${dep} | ${ret} | ${v.departureCity} | ${v.roomDesc ?? ""} | ${v.serviceDesc} | ${v.totalPrice.toLocaleString("pl")} zl | ${pricePerNight.toLocaleString("pl")} zl |`;
+      }
+      return `| ${termin} | ${nights} | ${v.departureCity} | ${v.serviceDesc} | ${v.totalPrice.toLocaleString("pl")} zl | ${pricePerNight.toLocaleString("pl")} zl |`;
+    });
+    navigator.clipboard.writeText([header, sep, ...rows].join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [filtered]);
+
+  return (
+    <section
+      className="opacity-0"
+      style={{ animation: "heroReveal 0.5s cubic-bezier(.22,1,.36,1) 0.55s forwards" }}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="font-display text-xl text-sand-bright">Warianty wyjazdu</h2>
+        {sorted.length > 0 && (
+          <button
+            type="button"
+            onClick={copyAsMarkdown}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-sand-dim hover:text-sand-bright border border-sand/10 hover:border-sand/20 transition-colors"
+            title="Kopiuj jako markdown"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+            {copied ? "Skopiowano!" : "Markdown"}
+          </button>
+        )}
+        {enrichMutation.isPending && (
+          <span className="text-[10px] text-sand-dim animate-pulse">Pobieranie lotow...</span>
+        )}
+      </div>
+
+      <div className="bg-bg-card border border-sand/5 rounded-sm p-4">
+        {!mutation.data && (
+          <div className="text-center py-4 flex items-center justify-center gap-3">
+            <select
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="px-2 py-2 rounded-sm text-xs bg-bg-card border border-sand/10 text-sand-bright"
+            >
+              {MONTH_NAMES.map((name, i) => (
+                <option key={i + 1} value={i + 1}>{name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => mutation.mutate({ offerId, month })}
+              disabled={mutation.isPending}
+              className="px-4 py-2 rounded-sm text-xs font-semibold bg-accent text-white hover:bg-accent-glow transition-colors disabled:opacity-40"
+            >
+              {mutation.isPending ? "Pobieranie..." : "Sprawdz warianty wyjazdu"}
+            </button>
+            {mutation.isError && (
+              <p className="mt-2 text-xs text-red">{(mutation.error as Error).message}</p>
+            )}
+          </div>
+        )}
+
+        {sorted.length > 0 && (
+          <>
+            {/* City filter chips */}
+            {cities.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setCityFilter(null)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                    effectiveFilter === null
+                      ? "bg-accent/20 text-accent border border-accent/30"
+                      : "text-sand-dim border border-sand/10 hover:border-sand/20"
+                  }`}
+                >
+                  Wszystkie ({sorted.length})
+                </button>
+                {cities.map(([city, count]) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => setCityFilter(city)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                      effectiveFilter === city
+                        ? "bg-accent/20 text-accent border border-accent/30"
+                        : "text-sand-dim border border-sand/10 hover:border-sand/20"
+                    }`}
+                  >
+                    {city} ({count})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Nights filter chips */}
+            {nightsCounts.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setNightsFilter(new Set())}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                    nightsFilter.size === 0
+                      ? "bg-accent/20 text-accent border border-accent/30"
+                      : "text-sand-dim border border-sand/10 hover:border-sand/20"
+                  }`}
+                >
+                  Wszystkie noce ({cityFiltered.length})
+                </button>
+                {nightsCounts.map(([nights, count]) => {
+                  const active = nightsFilter.has(nights);
+                  return (
+                    <button
+                      key={nights}
+                      type="button"
+                      onClick={() => {
+                        setNightsFilter((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(nights)) next.delete(nights);
+                          else next.add(nights);
+                          return next;
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                        active
+                          ? "bg-accent/20 text-accent border border-accent/30"
+                          : "text-sand-dim border border-sand/10 hover:border-sand/20"
+                      }`}
+                    >
+                      {nights} nocy ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 mb-2">
+              <label className="text-[11px] text-sand-dim flex items-center gap-1">
+                Od
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-transparent border border-sand/10 rounded px-1.5 py-0.5 text-[11px] text-sand-bright focus:outline-none focus:border-accent/40"
+                />
+              </label>
+              <label className="text-[11px] text-sand-dim flex items-center gap-1">
+                Do
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-transparent border border-sand/10 rounded px-1.5 py-0.5 text-[11px] text-sand-bright focus:outline-none focus:border-accent/40"
+                />
+              </label>
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  className="text-[10px] text-sand-dim hover:text-sand-bright transition-colors"
+                >
+                  Wyczysc
+                </button>
+              )}
+            </div>
+
+            <div className="text-[11px] text-sand-dim mb-2">{filtered.length} wariantow</div>
+
+            <div className="max-h-[600px] overflow-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-bg-card">
+                  <tr className="text-left text-[10px] uppercase tracking-wider text-sand-dim font-bold border-b border-sand/10">
+                    <th className="py-2 pr-3 cursor-pointer select-none hover:text-sand-bright transition-colors" onClick={() => toggleSort("date")}>
+                      Termin {sortKey === "date" ? (sortAsc ? "\u2191" : "\u2193") : ""}
+                    </th>
+                    <th className="py-2 pr-3 cursor-pointer select-none hover:text-sand-bright transition-colors" onClick={() => toggleSort("nights")}>
+                      Noce {sortKey === "nights" ? (sortAsc ? "\u2191" : "\u2193") : ""}
+                    </th>
+                    {hasFlightTimes && <th className="py-2 pr-3">Wylot</th>}
+                    {hasFlightTimes && <th className="py-2 pr-3">Powrot</th>}
+                    <th className="py-2 pr-3">Miasto wylotu</th>
+                    {hasFlightTimes && <th className="py-2 pr-3">Pokoj</th>}
+                    <th className="py-2 pr-3">Wyzywienie</th>
+                    <th className="py-2 pr-3 text-right cursor-pointer select-none hover:text-sand-bright transition-colors" onClick={() => toggleSort("price")}>
+                      Cena {sortKey === "price" ? (sortAsc ? "\u2191" : "\u2193") : ""}
+                    </th>
+                    <th className="py-2 text-right cursor-pointer select-none hover:text-sand-bright transition-colors" onClick={() => toggleSort("pricePerNight")}>
+                      Cena/noc {sortKey === "pricePerNight" ? (sortAsc ? "\u2191" : "\u2193") : ""}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((v, i) => {
+                    const isCheapest = v.totalPrice === minPrice;
+                    const nights = v.numberOfNights || v.duration - 1;
+                    const pricePerNight = nights > 0 ? Math.round(v.totalPrice / nights) : 0;
+                    return (
+                      <tr
+                        key={v.id}
+                        className={`border-b border-sand/5 transition-colors hover:bg-sand/[0.04] opacity-0 ${
+                          isCheapest ? "bg-emerald-500/[0.04]" : i % 2 === 1 ? "bg-sand/[0.02]" : ""
+                        }`}
+                        style={{
+                          animation: `cardIn 0.35s cubic-bezier(.22,1,.36,1) ${0.03 * Math.min(i, 20)}s forwards`,
+                        }}
+                      >
+                        <td className="py-2 pr-3 whitespace-nowrap text-sand-bright font-medium">
+                          {v.departureDate ? formatTermin(v.departureDate) : ""} – {v.returnDate ? formatTermin(v.returnDate) : ""}
+                        </td>
+                        <td className="py-2 pr-3 text-sand">{nights}</td>
+                        {hasFlightTimes && (
+                          <td className="py-2 pr-3 text-sand-dim whitespace-nowrap">
+                            {v.departureTime && v.arrivalTime ? `${v.departureTime}→${v.arrivalTime}` : "–"}
+                          </td>
+                        )}
+                        {hasFlightTimes && (
+                          <td className="py-2 pr-3 text-sand-dim whitespace-nowrap">
+                            {v.returnDepartTime && v.returnArrivalTime ? `${v.returnDepartTime}→${v.returnArrivalTime}` : "–"}
+                          </td>
+                        )}
+                        <td className="py-2 pr-3 text-sand">{v.departureCity}</td>
+                        {hasFlightTimes && (
+                          <td className="py-2 pr-3 text-sand-dim text-[10px]">{v.roomDesc ?? "–"}</td>
+                        )}
+                        <td className="py-2 pr-3 text-sand-dim">{v.serviceDesc}</td>
+                        <td className={`py-2 pr-3 text-right whitespace-nowrap font-medium ${isCheapest ? "text-emerald-400" : "text-sand-bright"}`}>
+                          {v.totalPrice.toLocaleString("pl")} zl
+                          {isCheapest && (
+                            <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-400/80">
+                              Najtanszy
+                            </span>
+                          )}
+                        </td>
+                        <td className={`py-2 text-right whitespace-nowrap ${isCheapest ? "text-emerald-400/70" : "text-sand-dim"}`}>
+                          {pricePerNight.toLocaleString("pl")} zl
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {mutation.data && sorted.length === 0 && (
+          <p className="text-sm text-sand-dim text-center py-4">Brak wariantow</p>
+        )}
+      </div>
+    </section>
   );
 }
 

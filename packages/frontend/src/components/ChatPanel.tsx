@@ -4,12 +4,40 @@ import { DefaultChatTransport } from "ai";
 import { useStore } from "../store/useStore";
 import type { QualityMode, RatingSource } from "@smartwakacje/shared";
 
-const SUGGESTED_PROMPTS = [
+const SUGGESTED_PROMPTS: { label: string; prompt?: string; icon: string }[] = [
   { label: "Top 5 hoteli jakościowo", icon: "🏆" },
   { label: "Najlepszy stosunek ceny do ocen", icon: "💎" },
-  { label: "Porównaj Turcję vs Tunezję", icon: "⚖️" },
+  { label: "Porównaj kraje i podaj top 3 rekomendacje do każdego", icon: "⚖️" },
   { label: "Najtańsze hotele z oceną Google > 4.5", icon: "🔍" },
   { label: "Które hotele mają najlepsze jedzenie?", icon: "🍽️" },
+  {
+    label: "Najlepszy hotel na wakacje rodzinne z dziećmi",
+    icon: "👨‍👩‍👧‍👦",
+    prompt: `Pomóż mi wybrać najlepszy hotel na wakacje rodzinne dla 2 dzieci w wieku 5 i 7 lat, termin: koniec czerwca.
+
+Priorytety:
+- dzieci kochają wodę
+- najlepsze będą małe zjeżdżalnie, splash park, wodne place zabaw, płytkie/brodzikowe strefy
+- super jeśli w hotelu rano można bawić się w strefie wodnej, a po południu łatwo pójść nad morze i popływać
+- hotel najlepiej all inclusive
+- bardzo ważne: szeroki i prosty wybór jedzenia dla dzieci z wybiórczością pokarmową, np. pizza, spaghetti, makarony, frytki, pieczywo, owoce, proste śniadania
+- dzieci są w spektrum, więc dodatkowy plus za miejsce przewidywalne, rodzinne, niezbyt chaotyczne i nieprzebodźcowujące
+- ważne: bezpieczeństwo, wygodny układ hotelu, żeby nie trzeba było dużo chodzić między pokojem, basenami i plażą
+
+Dla każdego hotelu oceń:
+1. atrakcje wodne dla dzieci 5 i 7 lat
+2. dostęp do plaży/morza
+3. jakość i prostota jedzenia dla wybiórczych dzieci
+4. komfort dla dzieci w lekkim spektrum
+5. ogólna wygoda dla rodziny
+
+Na końcu:
+- zrób ranking od najlepszego do najsłabszego
+- wskaż 3 najlepsze opcje
+- przy każdej napisz krótko: dla kogo tak / dla kogo nie
+- zaznacz czerwone flagi
+- jeśli danych o jedzeniu lub atrakcjach brakuje, napisz czego dokładnie brakuje`,
+  },
 ];
 
 const MISSING_KEY_HINTS = [
@@ -189,6 +217,7 @@ export function ChatPanel() {
   const [useFiltered, setUseFiltered] = useState(true);
   const [qualityMode, setQualityMode] = useState<QualityMode>("precomputed");
   const [disabledSources, setDisabledSources] = useState<RatingSource[]>([]);
+  const [includeDescriptions, setIncludeDescriptions] = useState(false);
   const snapshotId = useStore((s) => s.activeSnapshotId);
   const offers = useStore((s) => s.offers);
   const filteredOffers = useStore((s) => s.filteredOffers);
@@ -207,9 +236,9 @@ export function ChatPanel() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: { snapshotId, offerIds, qualityMode, disabledSources },
+        body: { snapshotId, offerIds, qualityMode, disabledSources, includeDescriptions },
       }),
-    [snapshotId, qualityMode, JSON.stringify(offerIds), JSON.stringify(disabledSources)]
+    [snapshotId, qualityMode, includeDescriptions, JSON.stringify(offerIds), JSON.stringify(disabledSources)]
   );
 
   const { messages, sendMessage, status, error } = useChat({ transport });
@@ -275,6 +304,7 @@ export function ChatPanel() {
           offerIds,
           qualityMode,
           disabledSources,
+          includeDescriptions,
         }),
       });
 
@@ -470,7 +500,7 @@ export function ChatPanel() {
             <p className="text-[10px] uppercase tracking-widest text-sand-dim/55 font-semibold mb-1.5 px-0.5">
               Źródła danych
             </p>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               {SOURCE_CONFIG.map((src) => {
                 const isDisabled = disabledSources.includes(src.key);
                 return (
@@ -499,6 +529,17 @@ export function ChatPanel() {
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setIncludeDescriptions((v) => !v)}
+                className={`px-2.5 py-1.5 rounded-sm text-[11px] font-semibold border transition-all duration-150 ${
+                  includeDescriptions
+                    ? "bg-accent/15 border-accent/40 text-accent"
+                    : "opacity-50 border-sand/8 text-sand-dim hover:opacity-80"
+                }`}
+              >
+                Opisy hoteli
+              </button>
             </div>
           </div>
         </div>
@@ -533,12 +574,13 @@ export function ChatPanel() {
                     <button
                       key={p.label}
                       onClick={() => {
+                        const text = p.prompt ?? p.label;
                         if (missingKeyMode) {
-                          setInput(p.label);
-                          void prepareFallbackPrompt(p.label);
+                          setInput(text);
+                          void prepareFallbackPrompt(text);
                           return;
                         }
-                        send(p.label);
+                        send(text);
                       }}
                       className="group/sp flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-sm text-left text-[13px] text-sand-dim font-medium border border-sand/6 bg-bg-card/50 transition-all duration-200 hover:border-accent/30 hover:bg-bg-card hover:text-sand-bright"
                     >

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import { listSnapshots, saveSnapshot, deleteSnapshot, loadOffers, saveOffers } from "../services/cache";
+import { listSnapshots, saveSnapshot, deleteSnapshot, loadOffers, saveOffers, loadSnapshotMeta } from "../services/cache";
 import { scrapeOffers } from "../../../../scripts/src/scraper-core";
 import { enrichOffers } from "../services/enrich";
 import type { EnrichFailure } from "../services/enrich";
@@ -33,12 +33,14 @@ const scraperConfigSchema = z.object({
   delayBetweenPages: z.number().default(1000),
   minPrice: z.number().optional(),
   maxPrice: z.number().optional(),
+  fetchDescriptions: z.boolean().optional().default(true),
 });
 
 const ENRICH_LABEL: Record<string, string> = {
   "Google Maps": "Pobieranie ocen z Google Maps",
   "Trivago": "Pobieranie ocen z Trivago",
   "TripAdvisor": "Pobieranie ocen z TripAdvisor",
+  "Descriptions": "Pobieranie opisów hoteli",
 };
 
 function applyFailuresToProgress(failures: { phase: string; hotels: EnrichFailure[] }[]): boolean {
@@ -85,9 +87,12 @@ export const snapshotsRouter = router({
         completeStep(SCRAPE_LABEL);
 
         console.log(`Scraped ${result.parsed.length} offers, enriching ratings...`);
+        if (config.fetchDescriptions === false) {
+          completeStep(ENRICH_LABEL["Descriptions"]);
+        }
         const enrichResult = await enrichOffers(result.parsed, (phase, done, total) => {
           updateStep(ENRICH_LABEL[phase] ?? phase, done, total);
-        });
+        }, undefined, config);
 
         // Complete steps that had no failures
         for (const label of Object.values(ENRICH_LABEL)) {
@@ -172,14 +177,16 @@ export const snapshotsRouter = router({
         }
       }
 
-      // Load offers, re-enrich only failed hotels
+      // Load offers and snapshot config, re-enrich only failed hotels
       const offers = await loadOffers(snapshotId);
+      const meta = await loadSnapshotMeta(snapshotId);
       const enrichResult = await enrichOffers(
         offers,
         (phase, done, total) => {
           updateStep(ENRICH_LABEL[phase] ?? phase, done, total);
         },
         hotelNames,
+        meta?.filters,
       );
 
       // Save updated offers back (merge — enrichOffers already applied ratings)

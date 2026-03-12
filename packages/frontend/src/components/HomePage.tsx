@@ -56,6 +56,7 @@ export function HomePage() {
   const [attributes, setAttributes] = React.useState<number[]>([...DEFAULT_SCRAPER_CONFIG.attributes]);
   const [minPrice, setMinPrice] = React.useState<string>(String(DEFAULT_SCRAPER_CONFIG.minPrice));
   const [maxPrice, setMaxPrice] = React.useState<string>(String(DEFAULT_SCRAPER_CONFIG.maxPrice));
+  const [fetchDescriptions, setFetchDescriptions] = React.useState(true);
 
   // Scraping state
   const [isScraping, setIsScraping] = React.useState(false);
@@ -95,6 +96,7 @@ export function HomePage() {
         delayBetweenPages: 1000,
         ...(minPrice ? { minPrice: Number(minPrice) } : {}),
         ...(maxPrice ? { maxPrice: Number(maxPrice) } : {}),
+        fetchDescriptions,
       });
       utils.snapshots.list.invalidate();
       setPendingMeta(meta);
@@ -363,6 +365,18 @@ export function HomePage() {
                   </div>
                 </div>
               )}
+
+              {/* Descriptions toggle */}
+              <label className="flex items-center gap-3 mb-5 cursor-pointer select-none">
+                <button
+                  type="button"
+                  onClick={() => setFetchDescriptions(!fetchDescriptions)}
+                  className={`w-9 h-5 rounded-full relative transition-colors ${fetchDescriptions ? "bg-accent" : "bg-sand/20"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${fetchDescriptions ? "translate-x-4" : ""}`} />
+                </button>
+                <span className="text-sm text-sand-dim">Pobieraj opisy hoteli</span>
+              </label>
 
               {/* Submit */}
               <button
