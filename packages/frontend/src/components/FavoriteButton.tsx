@@ -1,13 +1,16 @@
+import type { Offer } from "@smartwakacje/shared";
 import { useStore } from "../store/useStore";
 import { trpc } from "../trpc";
 
 export function FavoriteButton({
   name,
   hotelId,
+  offer,
   size = "sm",
 }: {
   name: string;
   hotelId?: number;
+  offer?: Offer;
   size?: "sm" | "lg";
 }) {
   const isFavorite = useStore((s) => s.favorites.has(name));
@@ -24,7 +27,7 @@ export function FavoriteButton({
     e.preventDefault();
     e.stopPropagation();
     toggleFavorite(name);
-    mutation.mutate({ name, hotelId });
+    mutation.mutate({ name, hotelId, offer });
   };
 
   const dim = size === "lg" ? "w-10 h-10" : "w-8 h-8";

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta } from "@smartwakacje/shared";
+import { withComputedScores, type Offer, type SortConfig, type FilterState, type SnapshotMeta, type FavoriteEntry } from "@smartwakacje/shared";
 
 type View = "home" | "offers" | "offerDetail" | "favorites" | "compare";
 type Theme = "dark" | "light";
@@ -38,6 +38,69 @@ export function parseRoute(pathname: string): ParsedRoute {
   return { view: "home" };
 }
 
+/* ── Search params ↔ filters ────────────────────── */
+
+const numericFilterKeys: (keyof FilterState)[] = [
+  "priceMin", "priceMax", "priceTotalMin", "priceTotalMax",
+  "minRating", "minGmaps", "minTrivago", "minTA", "minStars",
+  "minEmployeeRating", "minGmapsCount", "minTrivagoCount", "minTACount", "minWakacjeCount",
+];
+
+export function filtersToSearchParams(
+  filters: FilterState, sort: SortConfig, page: number, perPage: number,
+): URLSearchParams {
+  const p = new URLSearchParams();
+
+  // Filters
+  if (filters.country !== initialFilters.country) p.set("country", filters.country);
+  if (filters.search !== initialFilters.search) p.set("search", filters.search);
+  for (const key of numericFilterKeys) {
+    const val = filters[key] as number;
+    const def = initialFilters[key] as number;
+    if (val !== def && val !== Infinity) p.set(key, String(val));
+  }
+
+  // Sort
+  if (sort.primary !== initialSort.primary) p.set("sortPrimary", sort.primary);
+  if (sort.primaryDir !== initialSort.primaryDir) p.set("sortPrimaryDir", sort.primaryDir);
+  if (sort.secondary !== initialSort.secondary) p.set("sortSecondary", sort.secondary);
+  if (sort.secondaryDir !== initialSort.secondaryDir) p.set("sortSecondaryDir", sort.secondaryDir);
+
+  // Pagination
+  if (page !== 1) p.set("page", String(page));
+  if (perPage !== 20) p.set("perPage", String(perPage));
+
+  return p;
+}
+
+export function searchParamsToFilters(params: URLSearchParams): {
+  filters: Partial<FilterState>; sort: Partial<SortConfig>; page?: number; perPage?: number;
+} {
+  const filters: Partial<FilterState> = {};
+  const sort: Partial<SortConfig> = {};
+
+  if (params.has("country")) filters.country = params.get("country")!;
+  if (params.has("search")) filters.search = params.get("search")!;
+
+  for (const key of numericFilterKeys) {
+    const raw = params.get(key);
+    if (raw != null) {
+      const n = parseFloat(raw);
+      if (!isNaN(n)) (filters as Record<string, number>)[key] = n;
+    }
+  }
+
+  if (params.has("sortPrimary")) sort.primary = params.get("sortPrimary") as SortConfig["primary"];
+  if (params.has("sortPrimaryDir")) sort.primaryDir = params.get("sortPrimaryDir") as SortConfig["primaryDir"];
+  if (params.has("sortSecondary")) sort.secondary = params.get("sortSecondary") as SortConfig["secondary"];
+  if (params.has("sortSecondaryDir")) sort.secondaryDir = params.get("sortSecondaryDir") as SortConfig["secondaryDir"];
+
+  const page = params.has("page") ? parseInt(params.get("page")!, 10) : undefined;
+  const perPage = params.has("perPage") ? parseInt(params.get("perPage")!, 10) : undefined;
+
+  return { filters, sort, page, perPage };
+}
+
 interface StoreState {
   // Theme
   theme: Theme;
@@ -63,6 +126,7 @@ interface StoreState {
 
   // Favorites & compare
   favorites: Set<string>;
+  favoriteEntries: Record<string, FavoriteEntry>;
   showFavoritesOnly: boolean;
   compareList: string[];
 
@@ -75,7 +139,7 @@ interface StoreState {
   restoreFromUrl: () => void;
 
   // Favorites & compare actions
-  setFavorites: (names: Set<string>) => void;
+  setFavorites: (entries: Record<string, FavoriteEntry>) => void;
   toggleFavorite: (name: string) => void;
   setShowFavoritesOnly: (v: boolean) => void;
   addToCompare: (name: string) => void;
@@ -143,6 +207,8 @@ function applyThemeToDOM(theme: Theme) {
 const _initialTheme = getInitialTheme();
 applyThemeToDOM(_initialTheme);
 
+let _syncingFromUrl = false;
+
 export const useStore = create<StoreState>((set, get) => ({
   // Theme
   theme: _initialTheme,
@@ -172,6 +238,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // Favorites & compare
   favorites: new Set(),
+  favoriteEntries: {},
   showFavoritesOnly: false,
   compareList: [],
 
@@ -203,10 +270,12 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   goBackToOffers: () => {
-    const snapshotId = get().activeSnapshotId;
+    const { activeSnapshotId, filters, sort, page, perPage } = get();
     set({ view: "offers", activeOffer: null, pendingOfferName: null });
-    if (snapshotId) {
-      history.pushState(null, "", buildSnapshotPath(snapshotId));
+    if (activeSnapshotId) {
+      const params = filtersToSearchParams(filters, sort, page, perPage);
+      const search = params.toString();
+      history.pushState(null, "", buildSnapshotPath(activeSnapshotId) + (search ? `?${search}` : ""));
     }
   },
 
@@ -226,8 +295,8 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // Favorites & compare actions
-  setFavorites: (names) => {
-    set({ favorites: names });
+  setFavorites: (entries) => {
+    set({ favorites: new Set(Object.keys(entries)), favoriteEntries: entries });
     // Re-apply filters if showing favorites only
     if (get().showFavoritesOnly) get().applyFilters();
   },
@@ -278,31 +347,23 @@ export const useStore = create<StoreState>((set, get) => ({
       set({ view: "compare" });
       return;
     }
-    if (route.view === "offers") {
+    if (route.view === "offers" || route.view === "offerDetail") {
+      const parsed = searchParamsToFilters(new URLSearchParams(window.location.search));
+      _syncingFromUrl = true;
       set({
-        view: "offers",
+        view: route.view === "offerDetail" ? "offers" : "offers",
         activeSnapshotId: route.snapshotId,
         activeSnapshotMeta: null,
         activeOffer: null,
-        pendingOfferName: null,
+        pendingOfferName: route.view === "offerDetail" ? route.offerName : null,
         offers: [],
         filteredOffers: [],
-        filters: initialFilters,
-        page: 1,
+        filters: { ...initialFilters, ...parsed.filters },
+        sort: { ...initialSort, ...parsed.sort },
+        page: parsed.page ?? 1,
+        perPage: parsed.perPage ?? 20,
       });
-    } else if (route.view === "offerDetail") {
-      // Load snapshot first, mark pending offer name to resolve once offers load
-      set({
-        view: "offers", // temporarily "offers" until the offer is found
-        activeSnapshotId: route.snapshotId,
-        activeSnapshotMeta: null,
-        activeOffer: null,
-        pendingOfferName: route.offerName,
-        offers: [],
-        filteredOffers: [],
-        filters: initialFilters,
-        page: 1,
-      });
+      _syncingFromUrl = false;
     } else {
       set({
         view: "home",
@@ -465,3 +526,22 @@ export const useStore = create<StoreState>((set, get) => ({
     }));
   },
 }));
+
+/* ── Store → URL sync subscriber ───────────────── */
+let _debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+useStore.subscribe((state, prev) => {
+  if (_syncingFromUrl || state.view !== "offers") return;
+  if (
+    state.filters === prev.filters && state.sort === prev.sort &&
+    state.page === prev.page && state.perPage === prev.perPage
+  ) return;
+  if (_debounceTimer) clearTimeout(_debounceTimer);
+  const delay = state.filters.search !== prev.filters?.search ? 300 : 0;
+  _debounceTimer = setTimeout(() => {
+    const params = filtersToSearchParams(state.filters, state.sort, state.page, state.perPage);
+    const search = params.toString();
+    const url = buildSnapshotPath(state.activeSnapshotId!) + (search ? `?${search}` : "");
+    history.replaceState(null, "", url);
+  }, delay);
+});

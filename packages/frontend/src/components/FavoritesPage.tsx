@@ -6,6 +6,9 @@ import { FavoriteButton } from "./FavoriteButton";
 import { Stars } from "./Stars";
 import { formatDate } from "@smartwakacje/shared";
 
+type OfferSource = "snapshot" | "cached" | "minimal";
+type FavoriteOffer = { offer: Offer; source: OfferSource };
+
 const SHORT_DAY_NAMES = ["niedz.", "pon.", "wt.", "sr.", "czw.", "pt.", "sob."];
 
 function formatTermin(dateStr: string): string {
@@ -124,6 +127,23 @@ function VariantsTable({ sorted }: { sorted: OfferVariant[] }) {
   );
 }
 
+/* ── Source badge helper ── */
+function SourceBadge({ source }: { source: OfferSource }) {
+  if (source === "snapshot") return null;
+  if (source === "cached") {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-sand/8 text-sand-dim border border-sand/10">
+        Zapisane dane
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-sand/5 text-sand-dim/50 border border-sand/8">
+      Brak w snapshocie
+    </span>
+  );
+}
+
 /* ── Hotel accordion row ── */
 function FavoriteRow({
   offer,
@@ -132,6 +152,7 @@ function FavoriteRow({
   nightsSet,
   dateFrom,
   dateTo,
+  source,
 }: {
   offer: Offer;
   delay: number;
@@ -139,11 +160,16 @@ function FavoriteRow({
   nightsSet: Set<number>;
   dateFrom: string;
   dateTo: string;
+  source: OfferSource;
 }) {
   const openOfferDetail = useStore((s) => s.openOfferDetail);
   const [manualClose, setManualClose] = useState(false);
   // Auto-expand when variants arrive, collapse only on manual click
   const expanded = variants != null && variants.length > 0 && !manualClose;
+
+  const isMinimal = source === "minimal";
+  const isCached = source === "cached";
+  const isStale = isMinimal || isCached;
 
   const allPhotos = offer.photos?.length ? offer.photos : offer.photo ? [offer.photo] : [];
   const placeholder = `https://placehold.co/120x80/1e1e22/a89b88?text=${encodeURIComponent(offer.name.slice(0, 8))}`;
@@ -162,32 +188,35 @@ function FavoriteRow({
   const hasVariants = variants != null;
   const variantCount = sorted.length;
 
+  const canNavigate = !isMinimal;
+
   return (
     <div
-      className="rounded border border-sand/5 overflow-hidden opacity-0 translate-y-3"
+      className={`rounded border border-sand/5 overflow-hidden opacity-0 translate-y-3 ${isMinimal ? "opacity-50" : isCached ? "opacity-75" : ""}`}
       style={{
         animation: `cardIn 0.35s cubic-bezier(.22,1,.36,1) ${delay}ms forwards`,
+        ...(isMinimal ? { opacity: 0.45 } : isCached ? { opacity: 0.7 } : {}),
       }}
     >
       {/* Collapsed header row */}
       <div
-        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors select-none ${
-          expanded ? "bg-bg-card border-b border-sand/5" : "bg-bg-card hover:bg-bg-raised"
-        }`}
+        className={`flex items-center gap-3 px-3 py-2 transition-colors select-none ${
+          hasVariants ? "cursor-pointer" : ""
+        } ${expanded ? "bg-bg-card border-b border-sand/5" : "bg-bg-card hover:bg-bg-raised"}`}
         onClick={() => hasVariants && setManualClose((c) => !c)}
       >
         {/* Thumbnail */}
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); openOfferDetail(offer); }}
-          className="relative w-28 h-20 rounded overflow-hidden shrink-0 border-0 p-0 cursor-pointer group"
+          onClick={(e) => { e.stopPropagation(); if (canNavigate) openOfferDetail(offer); }}
+          className={`relative w-28 h-20 rounded overflow-hidden shrink-0 border-0 p-0 group ${canNavigate ? "cursor-pointer" : "cursor-default"}`}
         >
           <img
             src={photoUrl}
             alt={offer.name}
             loading="lazy"
             onError={handleImgError}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+            className={`w-full h-full object-cover transition-transform duration-300 ${canNavigate ? "group-hover:scale-110" : ""} ${isStale ? "grayscale-[30%]" : ""}`}
           />
         </button>
 
@@ -196,35 +225,44 @@ function FavoriteRow({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); openOfferDetail(offer); }}
-              className="font-display text-base text-sand-bright leading-tight truncate bg-transparent border-0 p-0 cursor-pointer hover:text-accent transition-colors text-left"
+              onClick={(e) => { e.stopPropagation(); if (canNavigate) openOfferDetail(offer); }}
+              className={`font-display text-base leading-tight truncate bg-transparent border-0 p-0 text-left ${canNavigate ? "text-sand-bright cursor-pointer hover:text-accent transition-colors" : "text-sand-dim cursor-default"}`}
             >
               {offer.name}
             </button>
-            <Stars count={offer.category} />
+            {offer.category > 0 && <Stars count={offer.category} />}
+            <SourceBadge source={source} />
             <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-              <FavoriteButton name={offer.name} hotelId={offer.hotelId} />
+              <FavoriteButton name={offer.name} hotelId={offer.hotelId} offer={offer} />
             </div>
           </div>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="text-xs text-sand-dim">{offer.country} / {offer.region}</span>
-            <span className="text-xs text-sand-dim">{offer.tourOperator} · {offer.duration}d</span>
-            <RatingPill label="G" value={offer.googleRating} count={offer.googleRatingsTotal} />
-            <RatingPill label="TV" value={offer.trivagoRating} count={offer.trivagoReviewsCount} />
-            <RatingPill label="TA" value={offer.taRating} count={offer.taReviewCount} />
-            <RatingPill label="W" value={offer.ratingValue} count={offer.ratingReservationCount} />
-          </div>
+          {!isMinimal && (
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-xs text-sand-dim">{offer.country} / {offer.region}</span>
+              <span className="text-xs text-sand-dim">{offer.tourOperator} · {offer.duration}d</span>
+              <RatingPill label="G" value={offer.googleRating} count={offer.googleRatingsTotal} />
+              <RatingPill label="TV" value={offer.trivagoRating} count={offer.trivagoReviewsCount} />
+              <RatingPill label="TA" value={offer.taRating} count={offer.taReviewCount} />
+              <RatingPill label="W" value={offer.ratingValue} count={offer.ratingReservationCount} />
+            </div>
+          )}
         </div>
 
         {/* Price */}
         <div className="shrink-0 text-right">
-          <div className="font-display text-lg text-sand-bright tabular-nums">
-            {offer.price.toLocaleString("pl")}
-            <small className="text-xs text-sand-dim ml-0.5">zl</small>
-          </div>
-          <div className="text-xs font-semibold text-accent">
-            {offer.pricePerPerson.toLocaleString("pl")} zl/os
-          </div>
+          {isMinimal ? (
+            <span className="text-xs text-sand-dim/40">—</span>
+          ) : (
+            <>
+              <div className="font-display text-lg text-sand-bright tabular-nums">
+                {offer.price.toLocaleString("pl")}
+                <small className="text-xs text-sand-dim ml-0.5">zl</small>
+              </div>
+              <div className="text-xs font-semibold text-accent">
+                {offer.pricePerPerson.toLocaleString("pl")} zl/os
+              </div>
+            </>
+          )}
         </div>
 
         {/* Variant summary badge */}
@@ -266,6 +304,7 @@ function FavoriteRow({
 export function FavoritesPage() {
   const offers = useStore((s) => s.offers);
   const favorites = useStore((s) => s.favorites);
+  const favoriteEntries = useStore((s) => s.favoriteEntries);
   const compareList = useStore((s) => s.compareList);
   const openCompare = useStore((s) => s.openCompare);
   const goBackToOffers = useStore((s) => s.goBackToOffers);
@@ -285,17 +324,56 @@ export function FavoritesPage() {
   // @ts-expect-error - tRPC type inference issue with monorepo
   const batchMutation = trpc.variants.fetchBatchVariants.useMutation();
 
-  const favoriteOffers = useMemo(() => {
-    const cheapest = new Map<string, Offer>();
+  const favoriteOffers = useMemo((): FavoriteOffer[] => {
+    const result = new Map<string, FavoriteOffer>();
+    // First: pick cheapest from current snapshot
     for (const o of offers) {
       if (!favorites.has(o.name)) continue;
-      const existing = cheapest.get(o.name);
-      if (!existing || o.price < existing.price) {
-        cheapest.set(o.name, o);
+      const existing = result.get(o.name);
+      if (!existing || o.price < existing.offer.price) {
+        result.set(o.name, { offer: o, source: "snapshot" });
       }
     }
-    return [...cheapest.values()];
-  }, [offers, favorites]);
+    // Then: fill in missing favorites from cached snapshots or minimal placeholders
+    for (const name of favorites) {
+      if (result.has(name)) continue;
+      const entry = favoriteEntries[name];
+      if (entry?.offerSnapshot) {
+        result.set(name, { offer: entry.offerSnapshot, source: "cached" });
+      } else {
+        // Minimal placeholder for old entries without offerSnapshot
+        const minimal: Offer = {
+          id: `fav-${entry?.hotelId ?? name}`,
+          hotelId: entry?.hotelId,
+          name,
+          placeName: "",
+          url: "",
+          country: "",
+          region: "",
+          city: "",
+          duration: 0,
+          departureDate: "",
+          returnDate: "",
+          ratingValue: 0,
+          ratingRecommends: 0,
+          ratingReservationCount: 0,
+          employeeRatingCount: 0,
+          price: 0,
+          pricePerPerson: 0,
+          priceOld: null,
+          priceDiscount: null,
+          category: 0,
+          serviceDesc: "",
+          tourOperator: "",
+          promoLastMinute: false,
+          promoFirstMinute: false,
+          photo: "",
+        };
+        result.set(name, { offer: minimal, source: "minimal" });
+      }
+    }
+    return [...result.values()];
+  }, [offers, favorites, favoriteEntries]);
 
   const toggleNight = (n: number) => {
     setNightsSet((prev) => {
@@ -309,12 +387,14 @@ export function FavoritesPage() {
   const handleFetchBatch = () => {
     if (favoriteOffers.length === 0) return;
 
-    const offerData = favoriteOffers.map((o) => ({
-      offerId: o.id,
-      hotelId: o.hotelId,
-      tourOp: o.tourOpCode,
-      tourId: o.tourOperatorId,
-    }));
+    const offerData = favoriteOffers
+      .filter((fo) => fo.source !== "minimal")
+      .map((fo) => ({
+        offerId: fo.offer.id,
+        hotelId: fo.offer.hotelId,
+        tourOp: fo.offer.tourOpCode,
+        tourId: fo.offer.tourOperatorId,
+      }));
 
     setBatchResults(null);
     batchMutation.mutate(
@@ -335,7 +415,8 @@ export function FavoritesPage() {
   const copyAllMarkdown = useCallback(() => {
     if (!batchResults) return;
     const lines: string[] = [];
-    for (const offer of favoriteOffers) {
+    for (const { offer, source } of favoriteOffers) {
+      if (source === "minimal") continue;
       const raw = batchResults[offer.id];
       if (!raw || raw.length === 0) continue;
       const filtered = raw.filter((v) => {
@@ -419,7 +500,7 @@ export function FavoritesPage() {
             <h2 className="font-display text-2xl text-sand-dim mb-2">Brak ulubionych</h2>
             <p className="text-sm text-sand-dim/60 max-w-sm">
               Zaznacz gwiazdke na karcie hotelu, aby dodac go do ulubionych.
-              {!activeSnapshotId && " Najpierw otwórz snapshot z ofertami."}
+              {" Dodaj hotele do ulubionych z listy ofert."}
             </p>
             <button
               type="button"
@@ -535,10 +616,11 @@ export function FavoritesPage() {
 
             {/* Hotel list */}
             <div className="flex flex-col gap-1.5">
-              {favoriteOffers.map((offer, i) => (
+              {favoriteOffers.map(({ offer, source }, i) => (
                 <FavoriteRow
                   key={offer.name}
                   offer={offer}
+                  source={source}
                   delay={i * 30}
                   variants={batchResults?.[offer.id]}
                   nightsSet={nightsSet}

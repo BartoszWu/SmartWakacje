@@ -8,7 +8,7 @@ export const favoritesRouter = router({
   }),
 
   toggle: publicProcedure
-    .input(z.object({ name: z.string(), hotelId: z.number().optional() }))
+    .input(z.object({ name: z.string(), hotelId: z.number().optional(), offer: z.record(z.any()).optional() }))
     .mutation(async ({ input }) => {
       const favorites = await loadFavorites();
       const exists = input.name in favorites;
@@ -19,6 +19,7 @@ export const favoritesRouter = router({
         favorites[input.name] = {
           addedAt: new Date().toISOString(),
           hotelId: input.hotelId,
+          offerSnapshot: input.offer as any,
         };
       }
 

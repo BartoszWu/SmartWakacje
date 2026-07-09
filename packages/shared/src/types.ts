@@ -238,6 +238,7 @@ export interface OfferVariant {
 export interface FavoriteEntry {
   addedAt: string;
   hotelId?: number;
+  offerSnapshot?: Offer;
 }
 
 export interface DescriptionSection {

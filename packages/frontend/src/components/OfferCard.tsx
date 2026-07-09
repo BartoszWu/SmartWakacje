@@ -132,7 +132,7 @@ export function OfferCard({ offer, delay }: { offer: Offer; delay: number }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
         <div className="absolute top-3 right-3 z-10">
-          <FavoriteButton name={offer.name} hotelId={offer.hotelId} />
+          <FavoriteButton name={offer.name} hotelId={offer.hotelId} offer={offer} />
         </div>
 
         <div className="absolute top-3 left-3 flex gap-1.5 z-10">

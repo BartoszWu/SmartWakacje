@@ -79,7 +79,7 @@ function FavoritesLoader({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (data) {
-      setFavorites(new Set(Object.keys(data)));
+      setFavorites(data as Record<string, any>);
     }
   }, [data, setFavorites]);
 

@@ -22,7 +22,8 @@
       "mcp__chrome-devtools__take_snapshot",
       "Bash(curl -s -X POST 'https://www.wakacje.pl/v2/api/offerConfiguratorV2/offerVariants' \\\\\n  -H 'Content-Type: application/json' \\\\\n  -H 'Accept: application/json' \\\\\n  -H 'User-Agent: Mozilla/5.0' \\\\\n  -H 'Origin: https://www.wakacje.pl' \\\\\n  -H 'Referer: https://www.wakacje.pl/wczasy/' \\\\\n  -d '{\"offerId\":1012181,\"departureDate\":[\"2026-03-01:2026-03-31\"],\"duration\":[],\"adults\":2,\"kidsAges\":[],\"service\":[],\"transportType\":[],\"departurePlace\":[],\"providerIds\":[],\"limit\":5,\"orderBy\":\"departureDate\"}' | python3 -m json.tool 2>/dev/null | head -100)",
       "mcp__chrome-devtools__list_console_messages",
-      "mcp__chrome-devtools__take_screenshot"
+      "mcp__chrome-devtools__take_screenshot",
+      "Bash(cd packages/frontend && npx --yes tsc --noEmit 2>&1 | head -40)"
     ]
   },
   "sandbox": {
